@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Painel Operacional</title>
@@ -19,11 +16,24 @@
 
 <h1 id="titulo"></h1>
 
-<button onclick="logout()">
-Sair
-</button>
+<button onclick="logout()">🚪 Sair</button>
 
 <div id="adminArea"></div>
+
+<div style="background:#1f2937;padding:15px;border-radius:10px;margin-top:20px;">
+
+<h2>🕒 Selecione o turno</h2>
+
+<select id="turnoSelecionado" onchange="salvarTurno()">
+    <option value="">Escolha o turno</option>
+    <option value="1manha">1º Manhã</option>
+    <option value="2manha">2º Manhã</option>
+    <option value="1tarde">1º Tarde</option>
+    <option value="2tarde">2º Tarde</option>
+    <option value="gerencial">Gerencial</option>
+</select>
+
+</div>
 
 <h2>📋 Checklists</h2>
 
@@ -36,95 +46,334 @@ Sair
 <script>
 
 const usuario =
-    JSON.parse(
-        localStorage.getItem(
-            "usuarioLogado"
-        )
-    );
+    JSON.parse(localStorage.getItem("usuarioLogado"));
 
 if(!usuario){
-
-    window.location.href =
-        "login.html";
-
+    window.location.href = "login.html";
 }
 
 document.getElementById("titulo").innerText =
     "Olá " + usuario.nome;
 
 function logout(){
-
-    localStorage.removeItem(
-        "usuarioLogado"
-    );
-
-    window.location.href =
-        "login.html";
-
+    localStorage.removeItem("usuarioLogado");
+    localStorage.removeItem("turnoSelecionado");
+    window.location.href = "login.html";
 }
 
 const checklists = [
 
 {
-    nome:"Checklist Fechamento",
-    horario:"21:00",
-    arquivo:"checklists/fechamento.html"
+    id:"abertura08",
+    nome:"Checklist Abertura",
+    horario:"08:00",
+    arquivo:"checklists/abertura.html",
+    turnos:["1manha"]
 },
 
 {
+    id:"padaria09",
     nome:"Checklist Padaria",
     horario:"09:00",
-    arquivo:"checklists/padaria.html"
+    arquivo:"checklists/padaria.html",
+    turnos:["1manha","2manha"]
 },
 
 {
+    id:"acougue14",
     nome:"Checklist Açougue",
     horario:"14:00",
-    arquivo:"checklists/acougue.html"
+    arquivo:"checklists/acougue.html",
+    turnos:["1tarde"]
+},
+
+{
+    id:"fechamento21",
+    nome:"Checklist Fechamento",
+    horario:"21:00",
+    arquivo:"checklists/fechamento.html",
+    turnos:["2tarde"]
+},
+
+{
+    id:"gerencial18",
+    nome:"Checklist Gerencial",
+    horario:"18:00",
+    arquivo:"checklists/gerencial.html",
+    turnos:["gerencial"]
 }
 
 ];
 
-const lista =
-    document.getElementById("lista");
+function salvarTurno(){
 
-checklists.forEach(c => {
+    const turno =
+        document.getElementById("turnoSelecionado").value;
 
-    const item =
-        document.createElement("div");
+    localStorage.setItem("turnoSelecionado", turno);
 
-    item.style.background = "#1f2937";
+    renderizarPainel();
 
-    item.style.padding = "15px";
+}
 
-    item.style.marginBottom = "10px";
+function horarioParaMinutos(horario){
 
-    item.style.borderRadius = "10px";
+    const partes = horario.split(":");
 
-    item.innerHTML = `
+    return parseInt(partes[0]) * 60 + parseInt(partes[1]);
 
-        <h3>${c.nome}</h3>
+}
 
-        <p>Horário: ${c.horario}</p>
+function hojeISO(){
 
-        <button onclick="abrirChecklist('${c.arquivo}')">
-        Abrir
-        </button>
+    return new Date().toISOString().split("T")[0];
 
-    `;
+}
 
-    lista.appendChild(item);
+function agoraMinutos(){
 
-});
+    const agora = new Date();
 
-function abrirChecklist(url){
+    return agora.getHours() * 60 + agora.getMinutes();
+
+}
+
+function renderizarPainel(){
+
+    const lista =
+        document.getElementById("lista");
+
+    lista.innerHTML = "";
+
+    const turno =
+        localStorage.getItem("turnoSelecionado");
+
+    document.getElementById("turnoSelecionado").value =
+        turno || "";
+
+    if(!turno){
+
+        lista.innerHTML =
+            "<p>Selecione um turno para visualizar os checklists.</p>";
+
+        return;
+
+    }
+
+    const hoje = hojeISO();
+
+    const minutosAgora = agoraMinutos();
+
+    let checklistsFiltrados = checklists.filter(c => {
+
+        if(usuario.tipo === "admin" && turno === "gerencial"){
+            return true;
+        }
+
+        return c.turnos.includes(turno);
+
+    });
+
+    if(checklistsFiltrados.length === 0){
+
+        lista.innerHTML =
+            "<p>Nenhum checklist configurado para este turno.</p>";
+
+        return;
+
+    }
+
+    checklistsFiltrados.forEach(c => {
+
+        const chaveConclusao =
+            `${hoje}_${c.id}_concluido`;
+
+        const chaveExecucao =
+            `${hoje}_${c.id}_executando`;
+
+        const concluido =
+            localStorage.getItem(chaveConclusao);
+
+        const executando =
+            localStorage.getItem(chaveExecucao);
+
+        const horarioChecklist =
+            horarioParaMinutos(c.horario);
+
+        const atraso =
+            minutosAgora - horarioChecklist;
+
+        let status = "";
+        let cor = "#10b981";
+        let bloqueado = false;
+
+        if(concluido){
+
+            const dados =
+                JSON.parse(concluido);
+
+            status =
+                `✅ Finalizado por ${dados.nome} às ${dados.hora}`;
+
+            cor = "#10b981";
+            bloqueado = true;
+
+        }else if(executando){
+
+            const dados =
+                JSON.parse(executando);
+
+            if(dados.login !== usuario.login){
+
+                status =
+                    `🔒 Em execução por ${dados.nome}`;
+
+                cor = "#6b7280";
+                bloqueado = true;
+
+            }else{
+
+                status =
+                    "🟢 Em execução por você";
+
+                cor = "#10b981";
+
+            }
+
+        }else if(atraso < 0){
+
+            const falta = Math.abs(atraso);
+
+            const h = Math.floor(falta / 60);
+            const m = falta % 60;
+
+            status =
+                `⏳ Libera em ${h}h ${m}min`;
+
+            cor = "#facc15";
+            bloqueado = true;
+
+        }else if(atraso >= 0 && atraso < 30){
+
+            status =
+                "🟢 Liberado";
+
+            cor = "#10b981";
+
+            emitirAlerta(c.id, "liberado", 1);
+
+        }else if(atraso >= 30 && atraso < 60){
+
+            status =
+                `🔴 Atrasado há ${atraso} min`;
+
+            cor = "#ef4444";
+
+            emitirAlerta(c.id, "atrasado30", 2);
+
+        }else{
+
+            status =
+                `⚫ Crítico há ${atraso} min`;
+
+            cor = "#7f1d1d";
+
+            emitirAlerta(c.id, "critico1h", 4);
+
+        }
+
+        const item =
+            document.createElement("div");
+
+        item.style.background = "#1f2937";
+        item.style.padding = "15px";
+        item.style.marginBottom = "10px";
+        item.style.borderRadius = "10px";
+        item.style.borderLeft = "6px solid " + cor;
+
+        if(status.includes("Atrasado") || status.includes("Crítico")){
+            item.style.animation = "pulse 1s infinite";
+        }
+
+        item.innerHTML = `
+
+            <h3>${c.nome}</h3>
+
+            <p>Horário: ${c.horario}</p>
+
+            <p>${status}</p>
+
+            <button
+                ${bloqueado ? "disabled" : ""}
+                onclick="abrirChecklist('${c.id}','${c.arquivo}')"
+            >
+                Abrir
+            </button>
+
+        `;
+
+        lista.appendChild(item);
+
+    });
+
+}
+
+function abrirChecklist(id,url){
+
+    const hoje = hojeISO();
+
+    const chaveExecucao =
+        `${hoje}_${id}_executando`;
 
     localStorage.setItem(
-        "checklistEmExecucao",
-        url
+
+        chaveExecucao,
+
+        JSON.stringify({
+            login:usuario.login,
+            nome:usuario.nome,
+            inicio:new Date().toISOString()
+        })
+
     );
 
+    localStorage.setItem("checklistAtual", id);
+
     window.location.href = url;
+
+}
+
+function emitirAlerta(id,tipo,quantidade){
+
+    const hoje = hojeISO();
+
+    const chave =
+        `${hoje}_${id}_${tipo}_alerta`;
+
+    if(localStorage.getItem(chave)){
+        return;
+    }
+
+    localStorage.setItem(chave,"1");
+
+    for(let i = 0; i < quantidade; i++){
+
+        setTimeout(() => {
+
+            try{
+
+                navigator.vibrate?.(400);
+
+                const audio =
+                    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+
+                audio.play();
+
+            }catch(e){}
+
+        }, i * 900);
+
+    }
 
 }
 
@@ -132,19 +381,54 @@ if(usuario.tipo === "admin"){
 
     document.getElementById("adminArea").innerHTML = `
 
-        <h2>🛠 Painel Gerencial</h2>
+        <div style="background:#111827;padding:15px;border-radius:10px;margin-top:20px;">
 
-        <button>
-        Relatórios
-        </button>
+            <h2>🛠 Painel Gerencial</h2>
 
-        <button>
-        Usuários
-        </button>
+            <p>Usuário administrador: acesso completo liberado.</p>
+
+            <button>Relatórios</button>
+
+            <button>Usuários</button>
+
+        </div>
 
     `;
 
 }
+
+const style =
+    document.createElement("style");
+
+style.innerHTML = `
+
+@keyframes pulse{
+    0%{opacity:1;}
+    50%{opacity:0.45;}
+    100%{opacity:1;}
+}
+
+select{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    margin-top:10px;
+}
+
+button:disabled{
+    background:#555;
+    color:#999;
+    cursor:not-allowed;
+}
+
+`;
+
+document.head.appendChild(style);
+
+renderizarPainel();
+
+setInterval(renderizarPainel, 60000);
 
 </script>
 
