@@ -1,15 +1,7 @@
 const APP = {
-    // URL do seu Google Apps Script /exec
     API_URL: "https://script.google.com/macros/s/AKfycbz4HpzALrOIY7RvaI0S_pC2JT8h_NkXSJHL_1WA30MkLIJ5dR7foRtkE12GUp8E6WJd7w/exec",
 
-    versao: "Master v1",
-
-    usuariosPadrao: [
-        { login:"01", senha:"7421", nome:"Andre", tipo:"admin" },
-        { login:"02", senha:"7421", nome:"Katia", tipo:"operador" },
-        { login:"04", senha:"1111", nome:"Maria", tipo:"operador" },
-        { login:"08", senha:"0000", nome:"Tauna", tipo:"operador" }
-    ],
+    versao: "Master Sheets v1",
 
     turnos: [
         { id:"1manha", nome:"1º Manhã" },

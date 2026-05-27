@@ -18,28 +18,34 @@
     <input id="login" placeholder="Login" inputmode="numeric">
     <input id="senha" placeholder="Senha" type="password" inputmode="numeric">
     <button onclick="entrar()">Entrar</button>
+    <p id="status" class="small">Usuários sincronizados com Google Sheets.</p>
     <p id="erro" style="color:#ef4444;font-weight:bold"></p>
 </div>
 
 <script src="config.js"></script>
+<script src="app.js"></script>
 <script>
-function carregarUsuarios(){
-    const salvos = localStorage.getItem("usuariosSistema");
-    if(salvos) return JSON.parse(salvos);
-    localStorage.setItem("usuariosSistema", JSON.stringify(APP.usuariosPadrao));
-    return APP.usuariosPadrao;
-}
-function entrar(){
+async function entrar(){
     const login = document.getElementById("login").value.trim();
     const senha = document.getElementById("senha").value.trim();
-    const usuarios = carregarUsuarios();
-    const u = usuarios.find(x => x.login === login && x.senha === senha);
-    if(!u){
-        document.getElementById("erro").innerText = "Login ou senha inválidos.";
-        return;
+    const erro = document.getElementById("erro");
+    const status = document.getElementById("status");
+    erro.innerText = "";
+    status.innerText = "Conferindo login...";
+    try{
+        const usuarios = await carregarUsuariosOnline();
+        const u = usuarios.find(x => String(x.login) === login && String(x.senha) === senha);
+        if(!u){
+            erro.innerText = "Login ou senha inválidos.";
+            status.innerText = "Tente novamente.";
+            return;
+        }
+        localStorage.setItem("usuarioLogado", JSON.stringify(u));
+        window.location.href = "painel.html";
+    }catch(e){
+        erro.innerText = "Erro ao buscar usuários online. Verifique o Apps Script.";
+        status.innerText = e.message;
     }
-    localStorage.setItem("usuarioLogado", JSON.stringify(u));
-    window.location.href = "painel.html";
 }
 </script>
 </body>

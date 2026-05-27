@@ -77,20 +77,30 @@ function renderizarAdmin(){
             <button onclick="mostrarUsuarios()">👥 Usuários</button>
             <button onclick="mostrarRelatorio()">📊 Relatório local</button>
             <button onclick="mostrarTodos()">👁️ Visualizar todos os checklists</button>
+            <button onclick="sincronizarUsuarios()">🔄 Sincronizar usuários</button>
         </div>
         <div id="adminConteudo"></div>
     `;
 }
-function getUsuarios(){
-    const s = localStorage.getItem("usuariosSistema");
-    if(s) return JSON.parse(s);
-    localStorage.setItem("usuariosSistema", JSON.stringify(APP.usuariosPadrao));
-    return APP.usuariosPadrao;
+async function sincronizarUsuarios(){
+    try{
+        await carregarUsuariosOnline();
+        alert("Usuários sincronizados com a planilha.");
+    }catch(e){
+        alert("Erro ao sincronizar: " + e.message);
+    }
 }
-function setUsuarios(lista){ localStorage.setItem("usuariosSistema", JSON.stringify(lista)); }
-function mostrarUsuarios(){
-    document.getElementById("adminConteudo").innerHTML = `
-        <h3>Cadastro de usuários</h3>
+function getUsuariosCache(){
+    const s = localStorage.getItem("usuariosSistema");
+    return s ? JSON.parse(s) : [];
+}
+async function mostrarUsuarios(){
+    const conteudo = document.getElementById("adminConteudo");
+    conteudo.innerHTML = `<h3>Carregando usuários...</h3>`;
+    try{ await carregarUsuariosOnline(); }catch(e){}
+    conteudo.innerHTML = `
+        <h3>Cadastro de usuários global</h3>
+        <div class="small">Salva na planilha Google Sheets e passa a valer em todos os aparelhos.</div>
         <input id="uLogin" placeholder="Login">
         <input id="uNome" placeholder="Nome">
         <input id="uSenha" placeholder="Senha">
@@ -100,24 +110,22 @@ function mostrarUsuarios(){
     `;
     listarUsuariosAdmin();
 }
-function salvarUsuarioAdmin(){
-    const login = document.getElementById("uLogin").value.trim();
-    const nome = document.getElementById("uNome").value.trim();
-    const senha = document.getElementById("uSenha").value.trim();
-    const tipo = document.getElementById("uTipo").value;
-    if(!login || !nome || !senha){ alert("Preencha login, nome e senha."); return; }
-    const lista = getUsuarios();
-    const ex = lista.find(u=>u.login===login);
-    if(ex){ ex.nome=nome; ex.senha=senha; ex.tipo=tipo; }
-    else lista.push({login,senha,nome,tipo});
-    setUsuarios(lista);
-    alert("Usuário salvo neste aparelho.");
+async function salvarUsuarioAdmin(){
+    const u = {
+        login:document.getElementById("uLogin").value.trim(),
+        nome:document.getElementById("uNome").value.trim(),
+        senha:document.getElementById("uSenha").value.trim(),
+        tipo:document.getElementById("uTipo").value
+    };
+    if(!u.login || !u.nome || !u.senha){ alert("Preencha login, nome e senha."); return; }
+    await salvarUsuarioOnline(u);
+    alert("Usuário salvo globalmente na planilha.");
     listarUsuariosAdmin();
 }
 function listarUsuariosAdmin(){
     const div = document.getElementById("listaUsuarios");
     div.innerHTML = "";
-    getUsuarios().forEach(u=>{
+    getUsuariosCache().forEach(u=>{
         div.innerHTML += `<div class="tableItem"><b>${u.nome}</b><br>Login: ${u.login}<br>Tipo: ${u.tipo}</div>`;
     });
 }
@@ -157,7 +165,7 @@ function renderizarPainel(forcarTodos=false){
         const st = getLocalState(c.id);
         const horario = horarioParaMinutos(c.horario);
         const atraso = minutos - horario;
-        let classe="yellow", status="", bloqueado=false, subt="";
+        let classe="yellow", status="", bloqueado=false;
         if(st.concluido){
             const d = JSON.parse(st.concluido);
             classe="green"; bloqueado=true;

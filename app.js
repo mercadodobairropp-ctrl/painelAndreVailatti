@@ -40,6 +40,48 @@ function postAPI(data){
     const body = new URLSearchParams(data);
     return fetch(APP.API_URL,{method:"POST",mode:"no-cors",body});
 }
+function jsonp(action, params={}){
+    return new Promise((resolve,reject)=>{
+        const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+        const qs = new URLSearchParams({...params, acao:action, callback:cb});
+        const script = document.createElement("script");
+        window[cb] = (data)=>{
+            resolve(data);
+            delete window[cb];
+            script.remove();
+        };
+        script.onerror = ()=>{
+            delete window[cb];
+            script.remove();
+            reject(new Error("Falha ao conectar ao servidor."));
+        };
+        script.src = APP.API_URL + "?" + qs.toString();
+        document.body.appendChild(script);
+    });
+}
+async function carregarUsuariosOnline(){
+    const data = await jsonp("getUsers");
+    if(data && data.status === "ok"){
+        localStorage.setItem("usuariosSistema", JSON.stringify(data.usuarios || []));
+        return data.usuarios || [];
+    }
+    throw new Error(data && data.mensagem ? data.mensagem : "Erro ao carregar usuários.");
+}
+async function salvarUsuarioOnline(usuario){
+    await postAPI({
+        acao:"saveUser",
+        login:usuario.login,
+        senha:usuario.senha,
+        nome:usuario.nome,
+        tipo:usuario.tipo
+    });
+    // Atualiza cache local para refletir na hora.
+    const lista = JSON.parse(localStorage.getItem("usuariosSistema") || "[]");
+    const ex = lista.find(u=>u.login===usuario.login);
+    if(ex){ ex.senha=usuario.senha; ex.nome=usuario.nome; ex.tipo=usuario.tipo; }
+    else lista.push(usuario);
+    localStorage.setItem("usuariosSistema", JSON.stringify(lista));
+}
 function tocar(qtd=1){
     for(let i=0;i<qtd;i++){
         setTimeout(()=>{
