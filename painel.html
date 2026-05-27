@@ -4,227 +4,149 @@
 <head>
 
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Painel Administrativo</title>
+<title>Painel Operacional</title>
 
-<link rel="manifest" href="manifest.json">
-
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-<meta name="theme-color" content="#d60000">
-
-<style>
-
-body{
-    margin:0;
-    background:#0f1115;
-    color:white;
-    font-family:Arial;
-}
-
-.topo{
-    background:#161b22;
-    padding:20px;
-    text-align:center;
-    border-bottom:2px solid #222;
-}
-
-.topo h1{
-    margin:0;
-    color:#00ff88;
-}
-
-.container{
-    padding:20px;
-}
-
-.card{
-    background:#1b1f27;
-    border-radius:15px;
-    padding:20px;
-    margin-bottom:20px;
-}
-
-.ok{
-    border-left:6px solid #00ff88;
-}
-
-.pendente{
-    border-left:6px solid orange;
-}
-
-.atrasado{
-    border-left:6px solid red;
-    animation:pulse 1s infinite;
-}
-
-@keyframes pulse{
-
-    0%{opacity:1;}
-    50%{opacity:.5;}
-    100%{opacity:1;}
-
-}
-
-.titulo{
-    font-size:20px;
-    margin-bottom:10px;
-}
-
-.status{
-    font-size:14px;
-    color:#ccc;
-}
-
-.botao{
-    display:inline-block;
-    margin-top:15px;
-    padding:10px 15px;
-    background:#00ff88;
-    color:black;
-    border-radius:10px;
-    text-decoration:none;
-    font-weight:bold;
-}
-
-.botao:hover{
-    opacity:.8;
-}
-
-</style>
+<link rel="stylesheet" href="styles.css">
 
 </head>
 
 <body>
 
-<div class="topo">
+<div style="padding:20px;">
 
-<h1>📊 Painel Administrativo</h1>
+<h1 id="titulo"></h1>
+
+<button onclick="logout()">
+Sair
+</button>
+
+<div id="adminArea"></div>
+
+<h2>📋 Checklists</h2>
+
+<div id="lista"></div>
 
 </div>
 
-<div class="container" id="painel"></div>
+<script src="usuarios.js"></script>
 
 <script>
+
+const usuario =
+    JSON.parse(
+        localStorage.getItem(
+            "usuarioLogado"
+        )
+    );
+
+if(!usuario){
+
+    window.location.href =
+        "login.html";
+
+}
+
+document.getElementById("titulo").innerText =
+    "Olá " + usuario.nome;
+
+function logout(){
+
+    localStorage.removeItem(
+        "usuarioLogado"
+    );
+
+    window.location.href =
+        "login.html";
+
+}
 
 const checklists = [
 
 {
     nome:"Checklist Fechamento",
     horario:"21:00",
-    arquivo:"checklist-fechamento.html"
+    arquivo:"checklists/fechamento.html"
 },
 
 {
-    nome:"Temperatura Freezers",
+    nome:"Checklist Padaria",
     horario:"09:00",
-    arquivo:"temperatura.html"
+    arquivo:"checklists/padaria.html"
 },
 
 {
-    nome:"Temperatura Freezers",
+    nome:"Checklist Açougue",
     horario:"14:00",
-    arquivo:"temperatura.html"
-},
-
-{
-    nome:"Temperatura Freezers",
-    horario:"18:00",
-    arquivo:"temperatura.html"
+    arquivo:"checklists/acougue.html"
 }
 
 ];
 
-function horarioMinutos(h){
+const lista =
+    document.getElementById("lista");
 
-    const p = h.split(":");
+checklists.forEach(c => {
 
-    return parseInt(p[0])*60 +
-           parseInt(p[1]);
+    const item =
+        document.createElement("div");
 
-}
+    item.style.background = "#1f2937";
 
-function renderizarPainel(){
+    item.style.padding = "15px";
 
-    const painel =
-        document.getElementById("painel");
+    item.style.marginBottom = "10px";
 
-    painel.innerHTML = "";
+    item.style.borderRadius = "10px";
 
-    const agora = new Date();
+    item.innerHTML = `
 
-    const minutosAgora =
-        agora.getHours()*60 +
-        agora.getMinutes();
+        <h3>${c.nome}</h3>
 
-    checklists.forEach((c,index)=>{
+        <p>Horário: ${c.horario}</p>
 
-        const horario =
-            horarioMinutos(c.horario);
+        <button onclick="abrirChecklist('${c.arquivo}')">
+        Abrir
+        </button>
 
-        const atraso =
-            minutosAgora - horario;
+    `;
 
-        let classe = "ok";
-        let status = "✅ Dentro do horário";
+    lista.appendChild(item);
 
-        if(atraso >= 0 && atraso <= 60){
+});
 
-            classe = "pendente";
+function abrirChecklist(url){
 
-            status =
-                "⚠️ Aguardando execução";
+    localStorage.setItem(
+        "checklistEmExecucao",
+        url
+    );
 
-        }
-
-        if(atraso > 60){
-
-            classe = "atrasado";
-
-            status =
-                `🚨 Atrasado há ${atraso} minutos`;
-
-        }
-
-        painel.innerHTML += `
-
-        <div class="card ${classe}">
-
-            <div class="titulo">
-                ${c.nome}
-            </div>
-
-            <div>
-                🕒 Horário: ${c.horario}
-            </div>
-
-            <div class="status">
-                ${status}
-            </div>
-
-            <a
-                class="botao"
-                href="${c.arquivo}"
-            >
-                Abrir Checklist
-            </a>
-
-        </div>
-
-        `;
-
-    });
+    window.location.href = url;
 
 }
 
-renderizarPainel();
+if(usuario.tipo === "admin"){
 
-setInterval(renderizarPainel,30000);
+    document.getElementById("adminArea").innerHTML = `
+
+        <h2>🛠 Painel Gerencial</h2>
+
+        <button>
+        Relatórios
+        </button>
+
+        <button>
+        Usuários
+        </button>
+
+    `;
+
+}
 
 </script>
 
 </body>
-
 </html>

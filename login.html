@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Login Operacional</title>
+
+<link rel="stylesheet" href="styles.css">
+
+</head>
+
+<body>
+
+<div class="login-box">
+
+<h1>🔐 Login</h1>
+
+<input
+    type="text"
+    id="login"
+    placeholder="Login"
+>
+
+<input
+    type="password"
+    id="senha"
+    placeholder="Senha"
+>
+
+<button onclick="entrar()">
+Entrar
+</button>
+
+<p id="erro"></p>
+
+</div>
+
+<script src="usuarios.js"></script>
+
+<script>
+
+function entrar(){
+
+    const login =
+        document.getElementById("login").value;
+
+    const senha =
+        document.getElementById("senha").value;
+
+    const usuario =
+        usuarios.find(
+            u =>
+            u.login === login &&
+            u.senha === senha
+        );
+
+    if(!usuario){
+
+        document.getElementById("erro").innerText =
+            "Login inválido";
+
+        return;
+
+    }
+
+    localStorage.setItem(
+        "usuarioLogado",
+        JSON.stringify(usuario)
+    );
+
+    window.location.href = "painel.html";
+
+}
+
+</script>
+
+</body>
+</html>

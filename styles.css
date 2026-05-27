@@ -1,0 +1,62 @@
+body{
+    margin:0;
+    font-family:Arial;
+    background:#111827;
+    color:white;
+}
+
+.login-box{
+
+    width:300px;
+
+    margin:100px auto;
+
+    background:#1f2937;
+
+    padding:30px;
+
+    border-radius:12px;
+
+}
+
+input{
+
+    width:100%;
+
+    padding:12px;
+
+    margin-bottom:15px;
+
+    border:none;
+
+    border-radius:8px;
+
+}
+
+button{
+
+    width:100%;
+
+    padding:12px;
+
+    border:none;
+
+    border-radius:8px;
+
+    background:#10b981;
+
+    color:black;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+}
+
+#erro{
+
+    color:red;
+
+    margin-top:10px;
+
+}
