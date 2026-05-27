@@ -3,57 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Painel Operacional</title>
-
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="styles.css">
-
 </head>
-
 <body>
+<div class="container">
+    <div class="topbar">
+        <div class="logoArea">
+            <img src="icon-512.png" class="logo">
+            <div>
+                <h1 id="titulo">Painel</h1>
+                <div class="sub">Sistema de checklists operacionais</div>
+            </div>
+        </div>
+        <button class="secondary" style="width:auto;margin:0" onclick="logout()">Sair</button>
+    </div>
 
-<div style="padding:20px;">
+    <div id="adminArea" class="adminPanel card"></div>
 
-<h1 id="titulo"></h1>
+    <div class="card">
+        <h2>🕒 Selecionar turno</h2>
+        <select id="turnoSelecionado" onchange="salvarTurno()">
+            <option value="">Escolha o turno</option>
+        </select>
+        <div class="small">O turno define quais checklists aparecem. O login registra quem executou.</div>
+    </div>
 
-<button onclick="logout()">🚪 Sair</button>
+    <div class="card">
+        <h2>🚨 Pendências</h2>
+        <div id="pendencias">Selecione um turno.</div>
+    </div>
 
-<div id="adminArea"></div>
-
-<div style="background:#1f2937;padding:15px;border-radius:10px;margin-top:20px;">
-
-<h2>🕒 Selecione o turno</h2>
-
-<select id="turnoSelecionado" onchange="salvarTurno()">
-    <option value="">Escolha o turno</option>
-    <option value="1manha">1º Manhã</option>
-    <option value="2manha">2º Manhã</option>
-    <option value="1tarde">1º Tarde</option>
-    <option value="2tarde">2º Tarde</option>
-    <option value="gerencial">Gerencial</option>
-</select>
-
+    <div id="lista"></div>
 </div>
 
-<h2>📋 Checklists</h2>
-
-<div id="lista"></div>
-
-</div>
-
-<script src="usuarios.js"></script>
-
+<script src="config.js"></script>
+<script src="app.js"></script>
 <script>
+const usuario = exigirLogin();
 
-const usuario =
-    JSON.parse(localStorage.getItem("usuarioLogado"));
-
-if(!usuario){
-    window.location.href = "login.html";
-}
-
-document.getElementById("titulo").innerText =
-    "Olá " + usuario.nome;
+document.getElementById("titulo").innerText = `Olá, ${usuario.nome}`;
 
 function logout(){
     localStorage.removeItem("usuarioLogado");
@@ -61,376 +52,173 @@ function logout(){
     window.location.href = "login.html";
 }
 
-const checklists = [
-
-{
-    id:"abertura08",
-    nome:"Checklist Abertura",
-    horario:"08:00",
-    arquivo:"checklists/abertura.html",
-    turnos:["1manha"]
-},
-
-{
-    id:"padaria09",
-    nome:"Checklist Padaria",
-    horario:"09:00",
-    arquivo:"checklists/padaria.html",
-    turnos:["1manha","2manha"]
-},
-
-{
-    id:"acougue14",
-    nome:"Checklist Açougue",
-    horario:"14:00",
-    arquivo:"checklists/acougue.html",
-    turnos:["1tarde"]
-},
-
-{
-    id:"fechamento21",
-    nome:"Checklist Fechamento",
-    horario:"21:00",
-    arquivo:"checklists/fechamento.html",
-    turnos:["2tarde"]
-},
-
-{
-    id:"gerencial18",
-    nome:"Checklist Gerencial",
-    horario:"18:00",
-    arquivo:"checklists/gerencial.html",
-    turnos:["gerencial"]
+function carregarTurnos(){
+    const sel = document.getElementById("turnoSelecionado");
+    APP.turnos.forEach(t=>{
+        const op = document.createElement("option");
+        op.value = t.id; op.innerText = t.nome;
+        sel.appendChild(op);
+    });
+    sel.value = localStorage.getItem("turnoSelecionado") || "";
 }
-
-];
 
 function salvarTurno(){
-
-    const turno =
-        document.getElementById("turnoSelecionado").value;
-
-    localStorage.setItem("turnoSelecionado", turno);
-
+    localStorage.setItem("turnoSelecionado", document.getElementById("turnoSelecionado").value);
     renderizarPainel();
-
 }
 
-function horarioParaMinutos(horario){
-
-    const partes = horario.split(":");
-
-    return parseInt(partes[0]) * 60 + parseInt(partes[1]);
-
-}
-
-function hojeISO(){
-
-    return new Date().toISOString().split("T")[0];
-
-}
-
-function agoraMinutos(){
-
-    const agora = new Date();
-
-    return agora.getHours() * 60 + agora.getMinutes();
-
-}
-
-function renderizarPainel(){
-
-    const lista =
-        document.getElementById("lista");
-
-    lista.innerHTML = "";
-
-    const turno =
-        localStorage.getItem("turnoSelecionado");
-
-    document.getElementById("turnoSelecionado").value =
-        turno || "";
-
-    if(!turno){
-
-        lista.innerHTML =
-            "<p>Selecione um turno para visualizar os checklists.</p>";
-
-        return;
-
-    }
-
-    const hoje = hojeISO();
-
-    const minutosAgora = agoraMinutos();
-
-    let checklistsFiltrados = checklists.filter(c => {
-
-        if(usuario.tipo === "admin" && turno === "gerencial"){
-            return true;
-        }
-
-        return c.turnos.includes(turno);
-
-    });
-
-    if(checklistsFiltrados.length === 0){
-
-        lista.innerHTML =
-            "<p>Nenhum checklist configurado para este turno.</p>";
-
-        return;
-
-    }
-
-    checklistsFiltrados.forEach(c => {
-
-        const chaveConclusao =
-            `${hoje}_${c.id}_concluido`;
-
-        const chaveExecucao =
-            `${hoje}_${c.id}_executando`;
-
-        const concluido =
-            localStorage.getItem(chaveConclusao);
-
-        const executando =
-            localStorage.getItem(chaveExecucao);
-
-        const horarioChecklist =
-            horarioParaMinutos(c.horario);
-
-        const atraso =
-            minutosAgora - horarioChecklist;
-
-        let status = "";
-        let cor = "#10b981";
-        let bloqueado = false;
-
-        if(concluido){
-
-            const dados =
-                JSON.parse(concluido);
-
-            status =
-                `✅ Finalizado por ${dados.nome} às ${dados.hora}`;
-
-            cor = "#10b981";
-            bloqueado = true;
-
-        }else if(executando){
-
-            const dados =
-                JSON.parse(executando);
-
-            if(dados.login !== usuario.login){
-
-                status =
-                    `🔒 Em execução por ${dados.nome}`;
-
-                cor = "#6b7280";
-                bloqueado = true;
-
-            }else{
-
-                status =
-                    "🟢 Em execução por você";
-
-                cor = "#10b981";
-
-            }
-
-        }else if(atraso < 0){
-
-            const falta = Math.abs(atraso);
-
-            const h = Math.floor(falta / 60);
-            const m = falta % 60;
-
-            status =
-                `⏳ Libera em ${h}h ${m}min`;
-
-            cor = "#facc15";
-            bloqueado = true;
-
-        }else if(atraso >= 0 && atraso < 30){
-
-            status =
-                "🟢 Liberado";
-
-            cor = "#10b981";
-
-            emitirAlerta(c.id, "liberado", 1);
-
-        }else if(atraso >= 30 && atraso < 60){
-
-            status =
-                `🔴 Atrasado há ${atraso} min`;
-
-            cor = "#ef4444";
-
-            emitirAlerta(c.id, "atrasado30", 2);
-
-        }else{
-
-            status =
-                `⚫ Crítico há ${atraso} min`;
-
-            cor = "#7f1d1d";
-
-            emitirAlerta(c.id, "critico1h", 4);
-
-        }
-
-        const item =
-            document.createElement("div");
-
-        item.style.background = "#1f2937";
-        item.style.padding = "15px";
-        item.style.marginBottom = "10px";
-        item.style.borderRadius = "10px";
-        item.style.borderLeft = "6px solid " + cor;
-
-        if(status.includes("Atrasado") || status.includes("Crítico")){
-            item.style.animation = "pulse 1s infinite";
-        }
-
-        item.innerHTML = `
-
-            <h3>${c.nome}</h3>
-
-            <p>Horário: ${c.horario}</p>
-
-            <p>${status}</p>
-
-            <button
-                ${bloqueado ? "disabled" : ""}
-                onclick="abrirChecklist('${c.id}','${c.arquivo}')"
-            >
-                Abrir
-            </button>
-
-        `;
-
-        lista.appendChild(item);
-
-    });
-
-}
-
-function abrirChecklist(id,url){
-
-    const hoje = hojeISO();
-
-    const chaveExecucao =
-        `${hoje}_${id}_executando`;
-
-    localStorage.setItem(
-
-        chaveExecucao,
-
-        JSON.stringify({
-            login:usuario.login,
-            nome:usuario.nome,
-            inicio:new Date().toISOString()
-        })
-
-    );
-
-    localStorage.setItem("checklistAtual", id);
-
-    window.location.href = url;
-
-}
-
-function emitirAlerta(id,tipo,quantidade){
-
-    const hoje = hojeISO();
-
-    const chave =
-        `${hoje}_${id}_${tipo}_alerta`;
-
-    if(localStorage.getItem(chave)){
-        return;
-    }
-
-    localStorage.setItem(chave,"1");
-
-    for(let i = 0; i < quantidade; i++){
-
-        setTimeout(() => {
-
-            try{
-
-                navigator.vibrate?.(400);
-
-                const audio =
-                    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-
-                audio.play();
-
-            }catch(e){}
-
-        }, i * 900);
-
-    }
-
-}
-
-if(usuario.tipo === "admin"){
-
-    document.getElementById("adminArea").innerHTML = `
-
-        <div style="background:#111827;padding:15px;border-radius:10px;margin-top:20px;">
-
-            <h2>🛠 Painel Gerencial</h2>
-
-            <p>Usuário administrador: acesso completo liberado.</p>
-
-            <button>Relatórios</button>
-
-            <button>Usuários</button>
-
+function renderizarAdmin(){
+    if(usuario.tipo !== "admin") return;
+    const area = document.getElementById("adminArea");
+    area.style.display = "block";
+    area.innerHTML = `
+        <h2>🛠 Painel Gerencial</h2>
+        <div class="grid">
+            <button onclick="mostrarUsuarios()">👥 Usuários</button>
+            <button onclick="mostrarRelatorio()">📊 Relatório local</button>
+            <button onclick="mostrarTodos()">👁️ Visualizar todos os checklists</button>
         </div>
-
+        <div id="adminConteudo"></div>
     `;
-
+}
+function getUsuarios(){
+    const s = localStorage.getItem("usuariosSistema");
+    if(s) return JSON.parse(s);
+    localStorage.setItem("usuariosSistema", JSON.stringify(APP.usuariosPadrao));
+    return APP.usuariosPadrao;
+}
+function setUsuarios(lista){ localStorage.setItem("usuariosSistema", JSON.stringify(lista)); }
+function mostrarUsuarios(){
+    document.getElementById("adminConteudo").innerHTML = `
+        <h3>Cadastro de usuários</h3>
+        <input id="uLogin" placeholder="Login">
+        <input id="uNome" placeholder="Nome">
+        <input id="uSenha" placeholder="Senha">
+        <select id="uTipo"><option value="operador">Operador</option><option value="admin">Administrador</option></select>
+        <button onclick="salvarUsuarioAdmin()">Salvar usuário</button>
+        <div id="listaUsuarios"></div>
+    `;
+    listarUsuariosAdmin();
+}
+function salvarUsuarioAdmin(){
+    const login = document.getElementById("uLogin").value.trim();
+    const nome = document.getElementById("uNome").value.trim();
+    const senha = document.getElementById("uSenha").value.trim();
+    const tipo = document.getElementById("uTipo").value;
+    if(!login || !nome || !senha){ alert("Preencha login, nome e senha."); return; }
+    const lista = getUsuarios();
+    const ex = lista.find(u=>u.login===login);
+    if(ex){ ex.nome=nome; ex.senha=senha; ex.tipo=tipo; }
+    else lista.push({login,senha,nome,tipo});
+    setUsuarios(lista);
+    alert("Usuário salvo neste aparelho.");
+    listarUsuariosAdmin();
+}
+function listarUsuariosAdmin(){
+    const div = document.getElementById("listaUsuarios");
+    div.innerHTML = "";
+    getUsuarios().forEach(u=>{
+        div.innerHTML += `<div class="tableItem"><b>${u.nome}</b><br>Login: ${u.login}<br>Tipo: ${u.tipo}</div>`;
+    });
+}
+function mostrarRelatorio(){
+    const div = document.getElementById("adminConteudo");
+    const historico = JSON.parse(localStorage.getItem("historicoLocal") || "[]");
+    let html = `<h3>Relatório local</h3><div class="small">Este relatório mostra as execuções registradas neste aparelho.</div>`;
+    if(!historico.length) html += `<p>Nenhuma execução registrada neste aparelho.</p>`;
+    historico.slice().reverse().forEach(h=>{
+        html += `<div class="tableItem"><b>${h.checklist}</b><br>Usuário: ${h.nome} (${h.login})<br>Data: ${h.data} ${h.hora}<br>Arquivo: ${h.arquivo}</div>`;
+    });
+    div.innerHTML = html;
+}
+function mostrarTodos(){
+    localStorage.setItem("turnoSelecionado","gerencial");
+    document.getElementById("turnoSelecionado").value = "gerencial";
+    renderizarPainel(true);
 }
 
-const style =
-    document.createElement("style");
+function renderizarPainel(forcarTodos=false){
+    const lista = document.getElementById("lista");
+    const pend = document.getElementById("pendencias");
+    lista.innerHTML = "";
+    const turno = localStorage.getItem("turnoSelecionado");
+    document.getElementById("turnoSelecionado").value = turno || "";
+    if(!turno){ lista.innerHTML = `<div class="card gray">Selecione um turno.</div>`; return; }
 
-style.innerHTML = `
+    const minutos = agoraMinutos();
+    const visiveis = APP.checklists.filter(c=>{
+        if(usuario.tipo==="admin" && (turno==="gerencial" || forcarTodos)) return true;
+        return c.turnos.includes(turno);
+    });
 
-@keyframes pulse{
-    0%{opacity:1;}
-    50%{opacity:0.45;}
-    100%{opacity:1;}
+    let pendencias = [];
+
+    visiveis.forEach(c=>{
+        const st = getLocalState(c.id);
+        const horario = horarioParaMinutos(c.horario);
+        const atraso = minutos - horario;
+        let classe="yellow", status="", bloqueado=false, subt="";
+        if(st.concluido){
+            const d = JSON.parse(st.concluido);
+            classe="green"; bloqueado=true;
+            status = `✅ Finalizado por ${d.nome} às ${d.hora}`;
+        } else if(st.executando){
+            const d = JSON.parse(st.executando);
+            if(d.login !== usuario.login){
+                classe="gray"; bloqueado=true;
+                status = `🔒 Em execução por ${d.nome}`;
+            } else {
+                classe="green"; status = "🟢 Em execução por você";
+            }
+            pendencias.push(`${c.nome} — em execução`);
+        } else if(atraso < 0){
+            const falta = Math.abs(atraso);
+            classe="yellow"; bloqueado=true;
+            status = `⏳ Libera em ${Math.floor(falta/60)}h ${falta%60}min`;
+        } else if(atraso < 30){
+            classe="green"; status="🟢 Liberado";
+            alertaUnico(c.id,"liberado",1);
+            pendencias.push(`${c.nome} — liberado`);
+        } else if(atraso < 60){
+            classe="red"; status=`🔴 Atrasado há ${atraso} min`;
+            alertaUnico(c.id,"atrasado30",2);
+            pendencias.push(`${c.nome} — atrasado`);
+        } else {
+            classe="darkred"; status=`⚫ Crítico há ${atraso} min`;
+            alertaUnico(c.id,"critico1h",4,`⚫ CRÍTICO: ${c.nome} está atrasado há ${atraso} minutos. Horário previsto: ${c.horario}.`);
+            pendencias.push(`${c.nome} — crítico`);
+        }
+
+        lista.innerHTML += `
+            <div class="card ${classe}">
+                <h2>${c.nome}</h2>
+                <div class="sub">${c.descricao}</div>
+                <span class="badge ${c.prioridade==='alta'?'red':c.prioridade==='media'?'yellow':'green'}">${c.prioridade.toUpperCase()}</span>
+                <span class="badge blue">Horário ${c.horario}</span>
+                <p><b>Status:</b> ${status}</p>
+                <button ${bloqueado?'disabled':''} onclick="abrirChecklist('${c.id}')">Abrir checklist</button>
+            </div>
+        `;
+    });
+
+    pend.innerHTML = pendencias.length ? pendencias.map(p=>"• "+p).join("<br>") : "✅ Nenhuma pendência para este turno.";
+}
+function abrirChecklist(id){
+    const c = APP.checklists.find(x=>x.id===id);
+    const st = getLocalState(id);
+    if(st.concluido){ alert("Este checklist já foi finalizado hoje."); return; }
+    if(st.executando){
+        const d = JSON.parse(st.executando);
+        if(d.login !== usuario.login){ alert("Este checklist está em execução por "+d.nome); return; }
+    }
+    setExecutando(id, usuario);
+    window.location.href = `checklist.html?id=${encodeURIComponent(id)}`;
 }
 
-select{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:8px;
-    margin-top:10px;
-}
-
-button:disabled{
-    background:#555;
-    color:#999;
-    cursor:not-allowed;
-}
-
-`;
-
-document.head.appendChild(style);
-
+carregarTurnos();
+renderizarAdmin();
 renderizarPainel();
-
 setInterval(renderizarPainel, 60000);
-
 </script>
-
 </body>
 </html>

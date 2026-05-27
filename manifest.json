@@ -1,6 +1,6 @@
 {
-  "name": "Checklist Confiança",
-  "short_name": "Checklist",
+  "name": "Painel Operacional Confiança",
+  "short_name": "Painel",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1115",

@@ -1,81 +1,46 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Login Operacional</title>
-
+<title>Login - Painel Operacional</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="styles.css">
-
 </head>
-
 <body>
-
-<div class="login-box">
-
-<h1>🔐 Login</h1>
-
-<input
-    type="text"
-    id="login"
-    placeholder="Login"
->
-
-<input
-    type="password"
-    id="senha"
-    placeholder="Senha"
->
-
-<button onclick="entrar()">
-Entrar
-</button>
-
-<p id="erro"></p>
-
+<div class="loginBox">
+    <div class="center">
+        <img src="icon-512.png" class="logo" style="width:96px;height:96px;border-radius:22px">
+        <h1>🔐 Painel Operacional</h1>
+        <div class="sub">Confiança Supermercados</div>
+    </div>
+    <input id="login" placeholder="Login" inputmode="numeric">
+    <input id="senha" placeholder="Senha" type="password" inputmode="numeric">
+    <button onclick="entrar()">Entrar</button>
+    <p id="erro" style="color:#ef4444;font-weight:bold"></p>
 </div>
 
-<script src="usuarios.js"></script>
-
+<script src="config.js"></script>
 <script>
-
-function entrar(){
-
-    const login =
-        document.getElementById("login").value;
-
-    const senha =
-        document.getElementById("senha").value;
-
-    const usuario =
-        usuarios.find(
-            u =>
-            u.login === login &&
-            u.senha === senha
-        );
-
-    if(!usuario){
-
-        document.getElementById("erro").innerText =
-            "Login inválido";
-
-        return;
-
-    }
-
-    localStorage.setItem(
-        "usuarioLogado",
-        JSON.stringify(usuario)
-    );
-
-    window.location.href = "painel.html";
-
+function carregarUsuarios(){
+    const salvos = localStorage.getItem("usuariosSistema");
+    if(salvos) return JSON.parse(salvos);
+    localStorage.setItem("usuariosSistema", JSON.stringify(APP.usuariosPadrao));
+    return APP.usuariosPadrao;
 }
-
+function entrar(){
+    const login = document.getElementById("login").value.trim();
+    const senha = document.getElementById("senha").value.trim();
+    const usuarios = carregarUsuarios();
+    const u = usuarios.find(x => x.login === login && x.senha === senha);
+    if(!u){
+        document.getElementById("erro").innerText = "Login ou senha inválidos.";
+        return;
+    }
+    localStorage.setItem("usuarioLogado", JSON.stringify(u));
+    window.location.href = "painel.html";
+}
 </script>
-
 </body>
 </html>
