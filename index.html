@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Checklist Central</title>
+
+<link rel="manifest" href="manifest.json">
+
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+<meta name="theme-color" content="#d60000">
+
+<style>
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f1115;
+    color:white;
+}
+
+.topo{
+    background:#161b22;
+    padding:20px;
+    text-align:center;
+    border-bottom:2px solid #222;
+}
+
+.topo h1{
+    color:#00ff88;
+    margin:0;
+}
+
+.container{
+    padding:20px;
+}
+
+.card{
+    background:#1b1f27;
+    border-radius:15px;
+    padding:20px;
+    margin-bottom:20px;
+    border-left:6px solid #00ff88;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.card:hover{
+    transform:scale(1.02);
+}
+
+.card.atrasado{
+    border-left:6px solid red;
+    animation:pulse 1s infinite;
+}
+
+@keyframes pulse{
+    0%{opacity:1;}
+    50%{opacity:.5;}
+    100%{opacity:1;}
+}
+
+.status{
+    margin-top:10px;
+    font-size:14px;
+    color:#999;
+}
+
+.timer{
+    margin-top:10px;
+    color:#00ff88;
+    font-weight:bold;
+}
+
+.indisponivel{
+    opacity:.4;
+    pointer-events:none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="topo">
+
+<h1>📋 Checklist Central</h1>
+
+</div>
+
+<div class="container" id="lista"></div>
+
+<script>
+
+const TELEGRAM_TOKEN =
+"8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
+
+const TELEGRAM_CHAT_ID =
+"5426828201";
+
+const checklists = [
+
+{
+    nome:"Checklist Fechamento",
+    arquivo:"checklist-fechamento.html",
+    horario:"21:00",
+    dias:[0,1,2,3,4,5,6]
+},
+
+{
+    nome:"Temperatura Freezers",
+    arquivo:"temperatura.html",
+    horario:"09:00",
+    dias:[0,1,2,3,4,5,6]
+},
+
+{
+    nome:"Temperatura Freezers",
+    arquivo:"temperatura.html",
+    horario:"14:00",
+    dias:[0,1,2,3,4,5,6]
+},
+
+{
+    nome:"Temperatura Freezers",
+    arquivo:"temperatura.html",
+    horario:"18:00",
+    dias:[0,1,2,3,4,5,6]
+}
+
+];
+
+function horarioParaMinutos(h){
+
+    const p = h.split(":");
+
+    return parseInt(p[0])*60 + parseInt(p[1]);
+
+}
+
+async function enviarTelegram(msg){
+
+    try{
+
+        await fetch(
+            `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":"application/json"
+                },
+                body:JSON.stringify({
+                    chat_id:TELEGRAM_CHAT_ID,
+                    text:msg
+                })
+            }
+        );
+
+    }catch(e){
+        console.log(e);
+    }
+
+}
+
+function renderizar(){
+
+    const lista =
+        document.getElementById("lista");
+
+    lista.innerHTML = "";
+
+    const agora = new Date();
+
+    const diaSemana = agora.getDay();
+
+    const minutosAgora =
+        agora.getHours()*60 +
+        agora.getMinutes();
+
+    checklists.forEach((c,index)=>{
+
+        if(!c.dias.includes(diaSemana)){
+            return;
+        }
+
+        const minutosChecklist =
+            horarioParaMinutos(c.horario);
+
+        const atraso =
+            minutosAgora - minutosChecklist;
+
+        let classe = "";
+        let status = "";
+        let timer = "";
+
+        if(atraso < -60){
+
+            classe = "indisponivel";
+
+            const falta =
+                Math.abs(atraso);
+
+            const horas =
+                Math.floor(falta/60);
+
+            const minutos =
+                falta%60;
+
+            timer =
+                `Libera em ${horas}h ${minutos}min`;
+
+            status = "⏳ Ainda não liberado";
+
+        }
+        else if(atraso >= -60 && atraso <= 60){
+
+            status = "🟢 Disponível";
+
+        }
+        else{
+
+            classe = "atrasado";
+
+            status = "🔴 Atrasado";
+
+            const chave =
+                "alerta_"+index+"_"+new Date().toDateString();
+
+            if(
+                !localStorage.getItem(chave)
+            ){
+
+                enviarTelegram(
+                    `🚨 Checklist atrasado:\n${c.nome}\nHorário: ${c.horario}`
+                );
+
+                localStorage.setItem(
+                    chave,
+                    "1"
+                );
+
+            }
+
+        }
+
+        lista.innerHTML += `
+
+        <div class="card ${classe}"
+            onclick="abrirChecklist('${c.arquivo}')">
+
+            <h2>${c.nome}</h2>
+
+            <div>
+            🕒 ${c.horario}
+            </div>
+
+            <div class="status">
+            ${status}
+            </div>
+
+            <div class="timer">
+            ${timer}
+            </div>
+
+        </div>
+
+        `;
+
+    });
+
+}
+
+function abrirChecklist(arq){
+
+    window.location.href = arq;
+
+}
+
+renderizar();
+
+setInterval(renderizar,30000);
+
+</script>
+
+</body>
+
+</html>

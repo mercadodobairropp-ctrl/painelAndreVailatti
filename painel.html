@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Painel Administrativo</title>
+
+<link rel="manifest" href="manifest.json">
+
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+<meta name="theme-color" content="#d60000">
+
+<style>
+
+body{
+    margin:0;
+    background:#0f1115;
+    color:white;
+    font-family:Arial;
+}
+
+.topo{
+    background:#161b22;
+    padding:20px;
+    text-align:center;
+    border-bottom:2px solid #222;
+}
+
+.topo h1{
+    margin:0;
+    color:#00ff88;
+}
+
+.container{
+    padding:20px;
+}
+
+.card{
+    background:#1b1f27;
+    border-radius:15px;
+    padding:20px;
+    margin-bottom:20px;
+}
+
+.ok{
+    border-left:6px solid #00ff88;
+}
+
+.pendente{
+    border-left:6px solid orange;
+}
+
+.atrasado{
+    border-left:6px solid red;
+    animation:pulse 1s infinite;
+}
+
+@keyframes pulse{
+
+    0%{opacity:1;}
+    50%{opacity:.5;}
+    100%{opacity:1;}
+
+}
+
+.titulo{
+    font-size:20px;
+    margin-bottom:10px;
+}
+
+.status{
+    font-size:14px;
+    color:#ccc;
+}
+
+.botao{
+    display:inline-block;
+    margin-top:15px;
+    padding:10px 15px;
+    background:#00ff88;
+    color:black;
+    border-radius:10px;
+    text-decoration:none;
+    font-weight:bold;
+}
+
+.botao:hover{
+    opacity:.8;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="topo">
+
+<h1>📊 Painel Administrativo</h1>
+
+</div>
+
+<div class="container" id="painel"></div>
+
+<script>
+
+const checklists = [
+
+{
+    nome:"Checklist Fechamento",
+    horario:"21:00",
+    arquivo:"checklist-fechamento.html"
+},
+
+{
+    nome:"Temperatura Freezers",
+    horario:"09:00",
+    arquivo:"temperatura.html"
+},
+
+{
+    nome:"Temperatura Freezers",
+    horario:"14:00",
+    arquivo:"temperatura.html"
+},
+
+{
+    nome:"Temperatura Freezers",
+    horario:"18:00",
+    arquivo:"temperatura.html"
+}
+
+];
+
+function horarioMinutos(h){
+
+    const p = h.split(":");
+
+    return parseInt(p[0])*60 +
+           parseInt(p[1]);
+
+}
+
+function renderizarPainel(){
+
+    const painel =
+        document.getElementById("painel");
+
+    painel.innerHTML = "";
+
+    const agora = new Date();
+
+    const minutosAgora =
+        agora.getHours()*60 +
+        agora.getMinutes();
+
+    checklists.forEach((c,index)=>{
+
+        const horario =
+            horarioMinutos(c.horario);
+
+        const atraso =
+            minutosAgora - horario;
+
+        let classe = "ok";
+        let status = "✅ Dentro do horário";
+
+        if(atraso >= 0 && atraso <= 60){
+
+            classe = "pendente";
+
+            status =
+                "⚠️ Aguardando execução";
+
+        }
+
+        if(atraso > 60){
+
+            classe = "atrasado";
+
+            status =
+                `🚨 Atrasado há ${atraso} minutos`;
+
+        }
+
+        painel.innerHTML += `
+
+        <div class="card ${classe}">
+
+            <div class="titulo">
+                ${c.nome}
+            </div>
+
+            <div>
+                🕒 Horário: ${c.horario}
+            </div>
+
+            <div class="status">
+                ${status}
+            </div>
+
+            <a
+                class="botao"
+                href="${c.arquivo}"
+            >
+                Abrir Checklist
+            </a>
+
+        </div>
+
+        `;
+
+    });
+
+}
+
+renderizarPainel();
+
+setInterval(renderizarPainel,30000);
+
+</script>
+
+</body>
+
+</html>
