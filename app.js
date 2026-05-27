@@ -12,6 +12,9 @@ function horaBR(d=new Date()){ return d.toLocaleTimeString("pt-BR",{hour:"2-digi
 function horaArquivo(d=new Date()){ return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}).replace(":","-"); }
 function horarioParaMinutos(h){ const p=h.split(":"); return parseInt(p[0])*60+parseInt(p[1]); }
 function agoraMinutos(){ const a=new Date(); return a.getHours()*60+a.getMinutes(); }
+function diaSemanaAtual(){
+    return ["dom","seg","ter","qua","qui","sex","sab"][new Date().getDay()];
+}
 function slug(s){
     return String(s).toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -75,12 +78,44 @@ async function salvarUsuarioOnline(usuario){
         nome:usuario.nome,
         tipo:usuario.tipo
     });
-    // Atualiza cache local para refletir na hora.
     const lista = JSON.parse(localStorage.getItem("usuariosSistema") || "[]");
     const ex = lista.find(u=>u.login===usuario.login);
     if(ex){ ex.senha=usuario.senha; ex.nome=usuario.nome; ex.tipo=usuario.tipo; }
     else lista.push(usuario);
     localStorage.setItem("usuariosSistema", JSON.stringify(lista));
+}
+function normalizarChecklist(c){
+    return {
+        id:String(c.id || "").trim(),
+        nome:String(c.nome || "").trim(),
+        descricao:String(c.descricao || "").trim(),
+        horario:String(c.horario || "00:00").trim(),
+        turnos:Array.isArray(c.turnos) ? c.turnos : String(c.turnos || "").split(",").map(x=>x.trim()).filter(Boolean),
+        dias:Array.isArray(c.dias) ? c.dias : String(c.dias || "").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean),
+        prioridade:String(c.prioridade || "media").trim().toLowerCase(),
+        ativo:String(c.ativo || "sim").trim().toLowerCase(),
+        tarefas:Array.isArray(c.tarefas) ? c.tarefas : String(c.tarefas || "").split(/\n|;/).map(x=>x.trim()).filter(Boolean)
+    };
+}
+async function carregarChecklistsOnline(){
+    const data = await jsonp("getChecklists");
+    if(data && data.status === "ok"){
+        const lista = (data.checklists || []).map(normalizarChecklist).filter(c=>c.id && c.nome && c.ativo !== "nao");
+        localStorage.setItem("checklistsSistema", JSON.stringify(lista));
+        return lista;
+    }
+    throw new Error(data && data.mensagem ? data.mensagem : "Erro ao carregar checklists.");
+}
+async function obterChecklists(){
+    try{
+        const online = await carregarChecklistsOnline();
+        if(online.length) return online;
+    }catch(e){
+        console.log("Falha ao buscar checklists online:", e);
+    }
+    const cache = localStorage.getItem("checklistsSistema");
+    if(cache) return JSON.parse(cache);
+    return APP.checklistsPadrao;
 }
 function tocar(qtd=1){
     for(let i=0;i<qtd;i++){

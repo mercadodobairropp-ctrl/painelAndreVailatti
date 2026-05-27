@@ -43,6 +43,7 @@
 <script src="app.js"></script>
 <script>
 const usuario = exigirLogin();
+let checklistsCarregados = [];
 
 document.getElementById("titulo").innerText = `Olá, ${usuario.nome}`;
 
@@ -77,15 +78,17 @@ function renderizarAdmin(){
             <button onclick="mostrarUsuarios()">👥 Usuários</button>
             <button onclick="mostrarRelatorio()">📊 Relatório local</button>
             <button onclick="mostrarTodos()">👁️ Visualizar todos os checklists</button>
-            <button onclick="sincronizarUsuarios()">🔄 Sincronizar usuários</button>
+            <button onclick="sincronizarTudo()">🔄 Sincronizar planilha</button>
         </div>
         <div id="adminConteudo"></div>
     `;
 }
-async function sincronizarUsuarios(){
+async function sincronizarTudo(){
     try{
         await carregarUsuariosOnline();
-        alert("Usuários sincronizados com a planilha.");
+        checklistsCarregados = await obterChecklists();
+        alert("Usuários e checklists sincronizados com a planilha.");
+        renderizarPainel();
     }catch(e){
         alert("Erro ao sincronizar: " + e.message);
     }
@@ -145,7 +148,7 @@ function mostrarTodos(){
     renderizarPainel(true);
 }
 
-function renderizarPainel(forcarTodos=false){
+async function renderizarPainel(forcarTodos=false){
     const lista = document.getElementById("lista");
     const pend = document.getElementById("pendencias");
     lista.innerHTML = "";
@@ -153,13 +156,28 @@ function renderizarPainel(forcarTodos=false){
     document.getElementById("turnoSelecionado").value = turno || "";
     if(!turno){ lista.innerHTML = `<div class="card gray">Selecione um turno.</div>`; return; }
 
+    if(!checklistsCarregados.length){
+        lista.innerHTML = `<div class="card yellow">Carregando checklists da planilha...</div>`;
+        checklistsCarregados = await obterChecklists();
+    }
+
     const minutos = agoraMinutos();
-    const visiveis = APP.checklists.filter(c=>{
+    const dia = diaSemanaAtual();
+
+    const visiveis = checklistsCarregados.filter(c=>{
+        const ativoHoje = !c.dias.length || c.dias.includes(dia);
+        if(!ativoHoje) return false;
         if(usuario.tipo==="admin" && (turno==="gerencial" || forcarTodos)) return true;
         return c.turnos.includes(turno);
     });
 
     let pendencias = [];
+
+    if(!visiveis.length){
+        lista.innerHTML = `<div class="card gray">Nenhum checklist configurado para este turno/dia.</div>`;
+        pend.innerHTML = "✅ Nenhuma pendência para este turno.";
+        return;
+    }
 
     visiveis.forEach(c=>{
         const st = getLocalState(c.id);
@@ -203,6 +221,7 @@ function renderizarPainel(forcarTodos=false){
                 <div class="sub">${c.descricao}</div>
                 <span class="badge ${c.prioridade==='alta'?'red':c.prioridade==='media'?'yellow':'green'}">${c.prioridade.toUpperCase()}</span>
                 <span class="badge blue">Horário ${c.horario}</span>
+                <span class="badge gray">Dias: ${c.dias.join(", ") || "todos"}</span>
                 <p><b>Status:</b> ${status}</p>
                 <button ${bloqueado?'disabled':''} onclick="abrirChecklist('${c.id}')">Abrir checklist</button>
             </div>
@@ -212,7 +231,7 @@ function renderizarPainel(forcarTodos=false){
     pend.innerHTML = pendencias.length ? pendencias.map(p=>"• "+p).join("<br>") : "✅ Nenhuma pendência para este turno.";
 }
 function abrirChecklist(id){
-    const c = APP.checklists.find(x=>x.id===id);
+    const c = checklistsCarregados.find(x=>x.id===id);
     const st = getLocalState(id);
     if(st.concluido){ alert("Este checklist já foi finalizado hoje."); return; }
     if(st.executando){
@@ -223,10 +242,14 @@ function abrirChecklist(id){
     window.location.href = `checklist.html?id=${encodeURIComponent(id)}`;
 }
 
-carregarTurnos();
-renderizarAdmin();
-renderizarPainel();
-setInterval(renderizarPainel, 60000);
+async function inicializar(){
+    carregarTurnos();
+    renderizarAdmin();
+    try{ checklistsCarregados = await obterChecklists(); }catch(e){}
+    renderizarPainel();
+}
+inicializar();
+setInterval(()=>renderizarPainel(), 60000);
 </script>
 </body>
 </html>

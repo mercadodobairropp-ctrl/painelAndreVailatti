@@ -1,7 +1,7 @@
 const APP = {
     API_URL: "https://script.google.com/macros/s/AKfycbz4HpzALrOIY7RvaI0S_pC2JT8h_NkXSJHL_1WA30MkLIJ5dR7foRtkE12GUp8E6WJd7w/exec",
 
-    versao: "Master Sheets v1",
+    versao: "Master Checklists Sheets v1",
 
     turnos: [
         { id:"1manha", nome:"1º Manhã" },
@@ -11,14 +11,17 @@ const APP = {
         { id:"gerencial", nome:"Gerencial" }
     ],
 
-    checklists: [
+    // Fallback caso a internet falhe. O painel tentará buscar a aba "checklists" da planilha.
+    checklistsPadrao: [
         {
             id:"padaria09",
             nome:"Checklist Padaria",
             descricao:"Rotina da padaria no período da manhã",
             horario:"09:00",
             turnos:["1manha", "2manha"],
+            dias:["dom","seg","ter","qua","qui","sex","sab"],
             prioridade:"alta",
+            ativo:"sim",
             tarefas:[
                 "tirar salgados e guardar na geladeira",
                 "tirar salgados do dia anterior e colocar para descarte. Anotar quais e quantos descartados",
@@ -35,7 +38,9 @@ const APP = {
             descricao:"Verificações operacionais do açougue",
             horario:"14:00",
             turnos:["1tarde"],
+            dias:["seg","ter","qua","qui","sex","sab"],
             prioridade:"alta",
+            ativo:"sim",
             tarefas:[
                 "Verificar se portas das ilhas do açougue estão fechadas",
                 "Desligar luz expositora 2 portas açougue",
@@ -50,7 +55,9 @@ const APP = {
             descricao:"Rotina completa de fechamento da loja",
             horario:"21:00",
             turnos:["2tarde"],
+            dias:["dom","seg","ter","qua","qui","sex","sab"],
             prioridade:"alta",
+            ativo:"sim",
             tarefas:[
                 "Desligar a luz do movel do salgado",
                 "Desligar a luz do movel do pão",
@@ -78,7 +85,9 @@ const APP = {
             descricao:"Conferência gerencial da operação",
             horario:"18:00",
             turnos:["gerencial"],
+            dias:["dom","seg","ter","qua","qui","sex","sab"],
             prioridade:"media",
+            ativo:"sim",
             tarefas:[
                 "Verificar pendências gerais do dia",
                 "Conferir checklists atrasados",

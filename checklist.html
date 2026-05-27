@@ -51,18 +51,24 @@
 const usuario = exigirLogin();
 const params = new URLSearchParams(window.location.search);
 const id = params.get("id");
-const checklist = APP.checklists.find(c=>c.id===id);
-if(!checklist){ alert("Checklist não encontrado."); window.location.href="painel.html"; }
-
-document.title = checklist.nome;
-document.getElementById("titulo").innerText = checklist.nome;
-document.getElementById("subtitulo").innerText = checklist.descricao + " • " + checklist.horario;
-document.getElementById("responsavel").innerText = `${usuario.nome} (${usuario.login})`;
-document.getElementById("inicio").innerText = horaBR();
-
+let checklist = null;
 let inicio = new Date();
 let fotoAtualIndex = null;
 let stream = null;
+
+async function iniciar(){
+    const lista = await obterChecklists();
+    checklist = lista.find(c=>c.id===id);
+    if(!checklist){ alert("Checklist não encontrado."); window.location.href="painel.html"; return; }
+
+    document.title = checklist.nome;
+    document.getElementById("titulo").innerText = checklist.nome;
+    document.getElementById("subtitulo").innerText = checklist.descricao + " • " + checklist.horario;
+    document.getElementById("responsavel").innerText = `${usuario.nome} (${usuario.login})`;
+    document.getElementById("inicio").innerText = horaBR();
+
+    montar();
+}
 
 function voltar(){ window.location.href = "painel.html"; }
 
@@ -211,7 +217,7 @@ async function finalizar(){
     };
     reader.readAsDataURL(blob);
 }
-montar();
+iniciar();
 </script>
 </body>
 </html>
