@@ -6,80 +6,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Checklist Central</title>
+<title>Painel Checklist Confiança</title>
 
 <link rel="manifest" href="manifest.json">
-
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
 <meta name="theme-color" content="#d60000">
 
 <style>
 
+:root{
+    --bg:#0f1115;
+    --card:#1b1f27;
+    --green:#00ff88;
+    --yellow:#ffd000;
+    --red:#ff3b3b;
+    --text:#e6e6e6;
+}
+
+*{
+    box-sizing:border-box;
+}
+
 body{
     margin:0;
-    font-family:Arial;
-    background:#0f1115;
-    color:white;
-}
-
-.topo{
-    background:#161b22;
-    padding:20px;
-    text-align:center;
-    border-bottom:2px solid #222;
-}
-
-.topo h1{
-    color:#00ff88;
-    margin:0;
+    background:linear-gradient(135deg,#0f1115,#151922);
+    color:var(--text);
+    font-family:Segoe UI,Arial;
 }
 
 .container{
+    max-width:700px;
+    margin:auto;
     padding:20px;
+}
+
+h1{
+    text-align:center;
+    color:var(--green);
+    margin-bottom:25px;
+}
+
+.identificacao{
+    background:var(--card);
+    padding:20px;
+    border-radius:15px;
+    margin-bottom:25px;
+}
+
+.identificacao h2{
+    margin-top:0;
+    color:var(--green);
+}
+
+input,select{
+    width:100%;
+    padding:14px;
+    margin-top:10px;
+    border:none;
+    border-radius:10px;
+    font-size:16px;
 }
 
 .card{
-    background:#1b1f27;
+    background:var(--card);
+    padding:18px;
     border-radius:15px;
-    padding:20px;
     margin-bottom:20px;
-    border-left:6px solid #00ff88;
-    cursor:pointer;
-    transition:.2s;
+    border-left:6px solid #555;
+    transition:0.3s;
 }
 
-.card:hover{
-    transform:scale(1.02);
+.card h3{
+    margin-top:0;
 }
 
-.card.atrasado{
-    border-left:6px solid red;
+.status{
+    font-size:14px;
+    margin-top:10px;
+    font-weight:bold;
+}
+
+.status.ok{
+    color:var(--green);
+}
+
+.status.wait{
+    color:var(--yellow);
+}
+
+.status.delay{
+    color:var(--red);
     animation:pulse 1s infinite;
 }
 
 @keyframes pulse{
-    0%{opacity:1;}
-    50%{opacity:.5;}
-    100%{opacity:1;}
+
+    0%{
+        opacity:1;
+    }
+
+    50%{
+        opacity:0.4;
+    }
+
+    100%{
+        opacity:1;
+    }
+
 }
 
-.status{
-    margin-top:10px;
-    font-size:14px;
-    color:#999;
+button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:12px;
+    background:var(--green);
+    color:#000;
+    font-weight:bold;
+    font-size:16px;
+    margin-top:15px;
+    cursor:pointer;
 }
 
 .timer{
     margin-top:10px;
-    color:#00ff88;
-    font-weight:bold;
-}
-
-.indisponivel{
-    opacity:.4;
-    pointer-events:none;
+    font-size:14px;
+    opacity:0.8;
 }
 
 </style>
@@ -88,185 +140,193 @@ body{
 
 <body>
 
-<div class="topo">
+<div class="container">
 
-<h1>📋 Checklist Central</h1>
+<h1>📋 Painel de Checklists</h1>
+
+<div class="identificacao">
+
+<h2>👤 Identificação</h2>
+
+<input
+id="nomeFuncionario"
+placeholder="Nome da funcionária"
+>
+
+<select id="turnoFuncionario">
+
+<option value="">Selecione o turno</option>
+
+<option>Manhã</option>
+<option>Tarde</option>
+<option>Noite</option>
+
+</select>
 
 </div>
 
-<div class="container" id="lista"></div>
+<div id="painel"></div>
+
+</div>
 
 <script>
-
-const TELEGRAM_TOKEN =
-"8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
-
-const TELEGRAM_CHAT_ID =
-"5426828201";
 
 const checklists = [
 
 {
+    nome:"Checklist Abertura",
+    arquivo:"abertura.html",
+    horario:"08:00"
+},
+
+{
+    nome:"Checklist Padaria",
+    arquivo:"padaria.html",
+    horario:"14:00"
+},
+
+{
     nome:"Checklist Fechamento",
-    arquivo:"checklist-fechamento.html",
-    horario:"21:00",
-    dias:[0,1,2,3,4,5,6]
-},
-
-{
-    nome:"Temperatura Freezers",
-    arquivo:"temperatura.html",
-    horario:"09:00",
-    dias:[0,1,2,3,4,5,6]
-},
-
-{
-    nome:"Temperatura Freezers",
-    arquivo:"temperatura.html",
-    horario:"14:00",
-    dias:[0,1,2,3,4,5,6]
-},
-
-{
-    nome:"Temperatura Freezers",
-    arquivo:"temperatura.html",
-    horario:"18:00",
-    dias:[0,1,2,3,4,5,6]
+    arquivo:"fechamento.html",
+    horario:"21:00"
 }
 
 ];
 
-function horarioParaMinutos(h){
+function salvarFuncionario(){
 
-    const p = h.split(":");
+    const nome =
+        document.getElementById(
+            "nomeFuncionario"
+        ).value;
 
-    return parseInt(p[0])*60 + parseInt(p[1]);
+    const turno =
+        document.getElementById(
+            "turnoFuncionario"
+        ).value;
+
+    localStorage.setItem(
+        "funcionario_nome",
+        nome
+    );
+
+    localStorage.setItem(
+        "funcionario_turno",
+        turno
+    );
 
 }
 
-async function enviarTelegram(msg){
+function abrirChecklist(arquivo){
 
-    try{
+    salvarFuncionario();
 
-        await fetch(
-            `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
-            {
-                method:"POST",
-                headers:{
-                    "Content-Type":"application/json"
-                },
-                body:JSON.stringify({
-                    chat_id:TELEGRAM_CHAT_ID,
-                    text:msg
-                })
-            }
+    const nome =
+        localStorage.getItem(
+            "funcionario_nome"
         );
 
-    }catch(e){
-        console.log(e);
+    const turno =
+        localStorage.getItem(
+            "funcionario_turno"
+        );
+
+    if(!nome){
+
+        alert("Informe o nome da funcionária.");
+
+        return;
+
     }
+
+    if(!turno){
+
+        alert("Selecione o turno.");
+
+        return;
+
+    }
+
+    window.location.href = arquivo;
 
 }
 
-function renderizar(){
+function gerarPainel(){
 
-    const lista =
-        document.getElementById("lista");
+    const painel =
+        document.getElementById("painel");
 
-    lista.innerHTML = "";
+    painel.innerHTML = "";
 
     const agora = new Date();
 
-    const diaSemana = agora.getDay();
-
-    const minutosAgora =
-        agora.getHours()*60 +
+    const horaAtual =
+        agora.getHours() * 60 +
         agora.getMinutes();
 
-    checklists.forEach((c,index)=>{
+    checklists.forEach(c=>{
 
-        if(!c.dias.includes(diaSemana)){
-            return;
+        const partes =
+            c.horario.split(":");
+
+        const horarioMin =
+            parseInt(partes[0]) * 60 +
+            parseInt(partes[1]);
+
+        let status = "";
+        let classe = "";
+
+        if(horaAtual < horarioMin){
+
+            status = "⏳ Aguardando horário";
+            classe = "wait";
+
+        }else{
+
+            status = "🚨 Checklist pendente";
+            classe = "delay";
+
         }
 
-        const minutosChecklist =
-            horarioParaMinutos(c.horario);
+        const restante =
+            horarioMin - horaAtual;
 
-        const atraso =
-            minutosAgora - minutosChecklist;
+        let textoTimer = "";
 
-        let classe = "";
-        let status = "";
-        let timer = "";
-
-        if(atraso < -60){
-
-            classe = "indisponivel";
-
-            const falta =
-                Math.abs(atraso);
+        if(restante > 0){
 
             const horas =
-                Math.floor(falta/60);
+                Math.floor(restante / 60);
 
             const minutos =
-                falta%60;
+                restante % 60;
 
-            timer =
+            textoTimer =
                 `Libera em ${horas}h ${minutos}min`;
 
-            status = "⏳ Ainda não liberado";
-
-        }
-        else if(atraso >= -60 && atraso <= 60){
-
-            status = "🟢 Disponível";
-
-        }
-        else{
-
-            classe = "atrasado";
-
-            status = "🔴 Atrasado";
-
-            const chave =
-                "alerta_"+index+"_"+new Date().toDateString();
-
-            if(
-                !localStorage.getItem(chave)
-            ){
-
-                enviarTelegram(
-                    `🚨 Checklist atrasado:\n${c.nome}\nHorário: ${c.horario}`
-                );
-
-                localStorage.setItem(
-                    chave,
-                    "1"
-                );
-
-            }
-
         }
 
-        lista.innerHTML += `
+        painel.innerHTML += `
 
-        <div class="card ${classe}"
-            onclick="abrirChecklist('${c.arquivo}')">
+        <div class="card">
 
-            <h2>${c.nome}</h2>
+            <h3>${c.nome}</h3>
 
             <div>
-            🕒 ${c.horario}
+            🕒 Horário: ${c.horario}
             </div>
 
-            <div class="status">
+            <div class="status ${classe}">
             ${status}
             </div>
 
             <div class="timer">
-            ${timer}
+            ${textoTimer}
             </div>
+
+            <button onclick="abrirChecklist('${c.arquivo}')">
+            Abrir Checklist
+            </button>
 
         </div>
 
@@ -276,15 +336,12 @@ function renderizar(){
 
 }
 
-function abrirChecklist(arq){
+gerarPainel();
 
-    window.location.href = arq;
-
-}
-
-renderizar();
-
-setInterval(renderizar,30000);
+setInterval(
+    gerarPainel,
+    60000
+);
 
 </script>
 
