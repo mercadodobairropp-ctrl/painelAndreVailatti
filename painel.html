@@ -1,5 +1,5 @@
-<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel Operacional v5.6</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="stylesheet" href="styles.css"></head><body>
-<div class="container"><div class="topbar"><div class="logoArea"><img src="icon-512.png" class="logo"><div><h1 id="titulo">Olá,</h1><div class="sub">Painel Operacional v5.6</div></div></div><button class="secondary" style="width:auto;margin:0" onclick="logout()">Sair</button></div><div id="adminArea"></div><div id="operadorArea"></div><div class="footerStatus" id="footerStatus">v5.6</div></div>
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel Operacional v5.9</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="stylesheet" href="styles.css"></head><body>
+<div class="container"><div class="topbar"><div class="logoArea"><img src="icon-512.png" class="logo"><div><h1 id="titulo">Olá,</h1><div class="sub">Painel Operacional v5.9</div></div></div><button class="secondary" style="width:auto;margin:0" onclick="logout()">Sair</button></div><div id="adminArea"></div><div id="operadorArea"></div><div class="footerStatus" id="footerStatus">v5.9</div></div>
 <script src="config.js"></script><script src="app.js"></script><script>
 const usuario=exigirLogin();let checklistsCarregados=[],checklistsTodos=[],turnosCarregados=[],execucoes=[],secaoAberta=null;titulo.innerText=`Olá ${usuario.nome || "usuário"},`;
 function logout(){localStorage.removeItem("usuarioLogado");localStorage.removeItem("turnoSelecionado");location.href="login.html"}
@@ -47,7 +47,7 @@ function editarUsuarioAdmin(login){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
-async function salvarUser(){const turnosPermitidos=[...document.querySelectorAll(".usuarioTurnoCheck:checked")].map(x=>x.value).join(",");const u={login:uLogin.value.trim(),nome:uNome.value.trim(),senha:uSenha.value.trim(),tipo:uTipo.value,turnosPermitidos};if(!u.login||!u.nome||!u.senha){alert("Preencha login, nome e senha.");return}await salvarUsuarioOnline(u,usuario.login);alert("Usuário salvo.");mostrarUsuarios()}
+async function salvarUser(){const turnosPermitidos=[...document.querySelectorAll(".usuarioTurnoCheck:checked")].map(x=>x.value).join(",");const u={login:normalizarLogin(uLogin.value.trim()),nome:uNome.value.trim(),senha:uSenha.value.trim(),tipo:uTipo.value,turnosPermitidos};if(!u.login||!u.nome||!u.senha){alert("Preencha login, nome e senha.");return}await salvarUsuarioOnline(u,usuario.login);alert("Usuário salvo.");mostrarUsuarios()}
 
 function mostrarTurnos(){
   adminConteudo.innerHTML=`<h3>🕒 Turnos</h3>
@@ -157,7 +157,7 @@ async function gerarRel(tipo){
 }
 function mostrarTodos(){const dia=diaSemanaAtual();const turnos=[...new Set(checklistsCarregados.filter(c=>!c.dias.length||c.dias.includes(dia)).flatMap(c=>c.turnos))];adminConteudo.innerHTML=`<h3>👁️ Todos os checklists de hoje</h3><select id="filtroTodos" onchange="renderTodos()"><option value="">Todos os turnos</option>${turnos.map(t=>`<option value="${t}">${t}</option>`).join("")}</select><div id="todosOut"></div>`;renderTodos()}
 function renderTodos(){const f=filtroTodos.value,dia=diaSemanaAtual();const arr=checklistsCarregados.filter(c=>(!c.dias.length||c.dias.includes(dia))&&(!f||c.turnos.includes(f))).map(c=>({checklist:c,...statusCombinado(c)})).sort(ordenarCards);todosOut.innerHTML=arr.map(o=>cardHTML(o.checklist,o,true)).join("")}
-function atualizarFooter(){footerStatus.innerText=`Painel Operacional v5.6 • ${navigator.onLine?"🟢 Online":"🔴 Offline"} • ${textoUltimaSync()}`}
+function atualizarFooter(){footerStatus.innerText=`Painel Operacional v5.9 • ${navigator.onLine?"🟢 Online":"🔴 Offline"} • ${textoUltimaSync()}`}
 async function init(){await carregarBase(true);renderAdmin();atualizarFooter();setInterval(async()=>{await carregarBase(false);atualizarFooter()},APP.SYNC_INTERVAL_MS)}
 init();if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
