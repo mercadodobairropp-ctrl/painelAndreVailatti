@@ -1,6 +1,28 @@
 const Mem={usuarios:null,turnos:null,checklists:null,execucoes:null,last:0};
-function usuarioLogado(){try{return JSON.parse(localStorage.getItem("usuarioLogado"));}catch(e){return null}}
+function normalizarLogin(v){const s=String(v||"").trim();return /^\d+$/.test(s)?s.padStart(2,"0"):s}
+function normalizarUsuario(u){
+  const login=normalizarLogin(u.login);
+  let nome=String(u.nome||u.nomeUsuario||u.usuario||"").trim();
+  if(!nome && login===APP.ADMIN_MESTRE) nome="Andre";
+  if(!nome) nome="Usuário";
+  return {...u,login,nome,tipo:String(u.tipo||"operador").trim().toLowerCase(),turnosPermitidos:String(u.turnosPermitidos||"").trim()};
+}
+function usuarioLogado(){try{const u=JSON.parse(localStorage.getItem("usuarioLogado"));return u?normalizarUsuario(u):null}catch(e){return null}}
 function exigirLogin(){const u=usuarioLogado();if(!u){location.href="login.html";return null}return u}
+function nomePorLogin(login){
+  login=normalizarLogin(login);
+  try{
+    const lista=JSON.parse(localStorage.getItem("usuariosSistema")||"[]");
+    const u=lista.find(x=>normalizarLogin(x.login)===login);
+    if(u && u.nome) return u.nome;
+  }catch(e){}
+  if(login===APP.ADMIN_MESTRE) return "Andre";
+  return login ? "Usuário " + login : "";
+}
+function nomeExecucao(ex){
+  if(!ex) return "";
+  return ex.nomeUsuario || ex.nome || nomePorLogin(ex.login);
+}
 function hojeISO(){return new Date().toISOString().split("T")[0]}
 function dataBR(d=new Date()){return d.toLocaleDateString("pt-BR")}
 function horaBR(d=new Date()){return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
@@ -10,7 +32,20 @@ function agoraMinutos(){const a=new Date();return a.getHours()*60+a.getMinutes()
 function diaSemanaAtual(){return ["dom","seg","ter","qua","qui","sex","sab"][new Date().getDay()]}
 function parseLista(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(",").map(x=>x.trim()).filter(Boolean)}
 function parseTarefas(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean)}
-function normalizarHora(v){const s=String(v||"").trim();const m=s.match(/(\d{1,2}):(\d{2})/);return m?String(m[1]).padStart(2,"0")+":"+m[2]:"00:00"}
+function normalizarHora(v){
+  const s=String(v||"").trim();
+  if(/^\d{1,2}$/.test(s)){
+    const h=Math.min(23,Math.max(0,parseInt(s,10)));
+    return String(h).padStart(2,"0")+":00";
+  }
+  const m=s.match(/(\d{1,2}):?(\d{2})?/);
+  if(m){
+    const h=Math.min(23,Math.max(0,parseInt(m[1]||"0",10)));
+    const min=Math.min(59,Math.max(0,parseInt(m[2]||"0",10)));
+    return String(h).padStart(2,"0")+":"+String(min).padStart(2,"0");
+  }
+  return "00:00";
+}
 function normalizarChecklist(c){return{id:String(c.id||"").trim(),nome:String(c.nome||"").trim(),descricao:String(c.descricao||"").trim(),horario:normalizarHora(c.horario),horarioFim:normalizarHora(c.horarioFim||"23:59"),turnos:parseLista(c.turnos),dias:parseLista(String(c.dias||"").toLowerCase()),prioridade:String(c.prioridade||"media").toLowerCase(),responsaveisPermitidos:parseLista(c.responsaveisPermitidos||""),tarefas:parseTarefas(c.tarefas),ativo:String(c.ativo||"sim").toLowerCase()}}
 function normalizarTurno(t){return{id:String(t.id||"").trim(),nome:String(t.nome||"").trim(),ativo:String(t.ativo||"sim").toLowerCase()}}
 function execId(c,data=hojeISO()){return `${data}_${c.id}_${String(c.horario).replace(":","-")}`}
@@ -20,7 +55,7 @@ function removeExecLocal(id){localStorage.removeItem("exec_"+id)}
 function postAPI(data){return fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)})}
 function jsonp(acao,params={}){return new Promise((resolve,reject)=>{const cb="cb_"+Date.now()+"_"+Math.floor(Math.random()*99999);const qs=new URLSearchParams({...params,acao,callback:cb});const s=document.createElement("script");window[cb]=d=>{resolve(d);delete window[cb];s.remove()};s.onerror=()=>{delete window[cb];s.remove();reject(new Error("Falha ao conectar ao servidor"))};s.src=APP.API_URL+"?"+qs.toString();document.body.appendChild(s)})}
 function cacheOk(){return Date.now()-Mem.last<APP.CACHE_MS}
-async function carregarUsuariosOnline(force=false){if(!force&&Mem.usuarios&&cacheOk())return Mem.usuarios;const d=await jsonp("getUsers");if(d?.status==="ok"){Mem.usuarios=d.usuarios||[];localStorage.setItem("usuariosSistema",JSON.stringify(Mem.usuarios));Mem.last=Date.now();return Mem.usuarios}throw new Error("Erro ao carregar usuários")}
+async function carregarUsuariosOnline(force=false){if(!force&&Mem.usuarios&&cacheOk())return Mem.usuarios;const d=await jsonp("getUsers");if(d?.status==="ok"){Mem.usuarios=(d.usuarios||[]).map(normalizarUsuario);localStorage.setItem("usuariosSistema",JSON.stringify(Mem.usuarios));Mem.last=Date.now();return Mem.usuarios}throw new Error("Erro ao carregar usuários")}
 async function salvarUsuarioOnline(u,ator){await postAPI({...u,acao:"saveUser",atorLogin:ator||""});Mem.usuarios=null}
 async function carregarTurnosOnline(force=false){if(!force&&Mem.turnos&&cacheOk())return Mem.turnos;const d=await jsonp("getTurnos");if(d?.status==="ok"){Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos));Mem.last=Date.now();return Mem.turnos}throw new Error("Erro ao carregar turnos")}
 async function carregarChecklistsOnline(force=false,incluirInativos=false){if(!force&&Mem.checklists&&cacheOk())return incluirInativos?Mem.checklists:Mem.checklists.filter(c=>c.ativo!=="nao");const d=await jsonp("getChecklists");if(d?.status==="ok"){Mem.checklists=(d.checklists||[]).map(normalizarChecklist).filter(c=>c.id&&c.nome);localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists));Mem.last=Date.now();return incluirInativos?Mem.checklists:Mem.checklists.filter(c=>c.ativo!=="nao")}throw new Error("Erro ao carregar checklists")}
@@ -31,7 +66,7 @@ function usuarioPodeVerTurno(u,t){if(u.tipo==="admin")return true;if(t==="gerenc
 function checklistPermitidoUsuario(c,u,t){if(u.tipo==="admin")return true;if(!c.turnos.includes(t))return false;const p=c.responsaveisPermitidos||[];return !p.length||p.includes(u.login)}
 function statusExecucao(c,ex=null){const now=agoraMinutos(),ini=horarioParaMinutos(c.horario),fim=horarioParaMinutos(c.horarioFim);if(ex){if(["finalizado","aguardando_envio"].includes(ex.status))return ex.status;if(ex.status==="executando")return"executando";if(ex.status==="reaberto"){const lim=horarioParaMinutos(ex.novoHorarioFim||c.horarioFim);return now>lim?"expirado":"reaberto"}if(ex.status==="expirado")return"expirado"}if(now<ini)return"aguardando";if(now>fim)return"expirado";if(now-ini>=60)return"critico";if(now-ini>=30)return"atrasado";return"liberado"}
 function classeStatus(st){return{finalizado:"green",aguardando_envio:"blue",executando:"green",reaberto:"green",aguardando:"gray",liberado:"green",atrasado:"red",critico:"darkred",expirado:"gray"}[st]||"gray"}
-function textoStatus(st,c,ex){if(st==="finalizado")return`✅ Finalizado por ${ex?.nomeUsuario||ex?.nome||""}`;if(st==="aguardando_envio")return`🟡 Aguardando envio`;if(st==="executando")return`🟢 Em execução por ${ex?.nomeUsuario||ex?.nome||""}`;if(st==="reaberto")return`🟢 Reaberto até ${ex?.novoHorarioFim||c.horarioFim}`;if(st==="aguardando")return"⏳ Aguardando horário";if(st==="liberado")return"🟢 Liberado";if(st==="atrasado")return"🔴 Atrasado";if(st==="critico")return"⚫ Crítico";if(st==="expirado")return"❌ Não feito / expirado";return"Pendente"}
+function textoStatus(st,c,ex){const nome=nomeExecucao(ex);if(st==="finalizado")return`✅ Finalizado${nome?" por "+nome:""}`;if(st==="aguardando_envio")return`🟡 Aguardando envio${nome?" ("+nome+")":""}`;if(st==="executando")return`🟢 Em execução${nome?" por "+nome:""}`;if(st==="reaberto")return`🟢 Reaberto até ${ex?.novoHorarioFim||c.horarioFim}`;if(st==="aguardando")return"⏳ Aguardando horário";if(st==="liberado")return"🟢 Liberado";if(st==="atrasado")return"🔴 Atrasado";if(st==="critico")return"⚫ Crítico";if(st==="expirado")return"❌ Não feito / expirado";return"Pendente"}
 function ordenarCards(a,b){const fa=["finalizado","expirado","aguardando_envio"].includes(a.status)?1:0,fb=["finalizado","expirado","aguardando_envio"].includes(b.status)?1:0;if(fa!==fb)return fa-fb;return horarioParaMinutos(a.checklist.horario)-horarioParaMinutos(b.checklist.horario)}
 function tocarAlarme(c=1){for(let i=0;i<c;i++)setTimeout(()=>{try{navigator.vibrate?.(2000)}catch(e){}try{const a=new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");a.play();setTimeout(()=>{try{a.pause();a.currentTime=0}catch(e){}},2000)}catch(e){}},i*2600)}
 function alertaUnico(id,tipo,ciclos,msg=null){const k=`${id}_${tipo}_alerta_v5`;if(localStorage.getItem(k))return;localStorage.setItem(k,"1");tocarAlarme(ciclos);if(msg)postAPI({acao:"telegram",mensagem:msg})}

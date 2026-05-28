@@ -1,14 +1,14 @@
-<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel Operacional v5.0</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="stylesheet" href="styles.css"></head><body>
-<div class="container"><div class="topbar"><div class="logoArea"><img src="icon-512.png" class="logo"><div><h1 id="titulo">Olá,</h1><div class="sub">Painel Operacional v5.0</div></div></div><button class="secondary" style="width:auto;margin:0" onclick="logout()">Sair</button></div><div id="adminArea"></div><div id="operadorArea"></div><div class="footerStatus" id="footerStatus">v5.0</div></div>
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Painel Operacional v5.6</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="stylesheet" href="styles.css"></head><body>
+<div class="container"><div class="topbar"><div class="logoArea"><img src="icon-512.png" class="logo"><div><h1 id="titulo">Olá,</h1><div class="sub">Painel Operacional v5.6</div></div></div><button class="secondary" style="width:auto;margin:0" onclick="logout()">Sair</button></div><div id="adminArea"></div><div id="operadorArea"></div><div class="footerStatus" id="footerStatus">v5.6</div></div>
 <script src="config.js"></script><script src="app.js"></script><script>
-const usuario=exigirLogin();let checklistsCarregados=[],checklistsTodos=[],turnosCarregados=[],execucoes=[],secaoAberta=null;titulo.innerText=`Olá ${usuario.nome || usuario.login},`;
+const usuario=exigirLogin();let checklistsCarregados=[],checklistsTodos=[],turnosCarregados=[],execucoes=[],secaoAberta=null;titulo.innerText=`Olá ${usuario.nome || "usuário"},`;
 function logout(){localStorage.removeItem("usuarioLogado");localStorage.removeItem("turnoSelecionado");location.href="login.html"}
 function toggleSecao(nome,fn){if(secaoAberta===nome){secaoAberta=null;adminConteudo.innerHTML="";return}secaoAberta=nome;fn()}
 async function carregarBase(force=false){turnosCarregados=await obterTurnos();checklistsCarregados=await carregarChecklistsOnline(force,false);checklistsTodos=await carregarChecklistsOnline(force,true);execucoes=await carregarExecucoesOnline(hojeISO(),hojeISO(),force);marcarSync()}
 function execOnline(id){return execucoes.find(e=>e.idExecucao===id)}
 function execCombinada(c){return execOnline(execId(c))||getExecLocal(execId(c))}
 function statusCombinado(c){const ex=execCombinada(c);return{idExec:execId(c),exec:ex,status:statusExecucao(c,ex)}}
-function renderAdmin(){if(usuario.tipo!=="admin"){renderOperador();return}adminArea.innerHTML=`<div class="card"><h2>🛠 Painel Gerencial</h2><div class="grid two"><button onclick="toggleSecao('usuarios',mostrarUsuarios)">👥 Usuários</button><button onclick="toggleSecao('novo',()=>mostrarNovoChecklist())">➕ Novo checklist</button><button onclick="toggleSecao('existentes',mostrarExistentes)">📋 Checklists existentes</button><button onclick="toggleSecao('relatorio',mostrarRelatorio)">📊 Relatórios</button><button onclick="toggleSecao('todos',mostrarTodos)">👁️ Visualizar todos hoje</button></div><div id="adminConteudo"></div></div>`;operadorArea.innerHTML=""}
+function renderAdmin(){if(usuario.tipo!=="admin"){renderOperador();return}adminArea.innerHTML=`<div class="card"><h2>🛠 Painel Gerencial</h2><div class="grid two"><button onclick="toggleSecao('usuarios',mostrarUsuarios)">👥 Usuários</button><button onclick="toggleSecao('turnos',mostrarTurnos)">🕒 Turnos</button><button onclick="toggleSecao('novo',()=>mostrarNovoChecklist())">➕ Novo checklist</button><button onclick="toggleSecao('existentes',mostrarExistentes)">📋 Checklists existentes</button><button onclick="toggleSecao('relatorio',mostrarRelatorio)">📊 Relatórios</button><button onclick="toggleSecao('todos',mostrarTodos)">👁️ Visualizar todos hoje</button></div><div id="adminConteudo"></div></div>`;operadorArea.innerHTML=""}
 function turnosComChecklistHoje(){const dia=diaSemanaAtual(),ids=new Set();checklistsCarregados.forEach(c=>{if(c.dias.length&&!c.dias.includes(dia))return;c.turnos.forEach(t=>ids.add(t))});return turnosCarregados.filter(t=>ids.has(t.id)&&usuarioPodeVerTurno(usuario,t.id))}
 function renderOperador(){adminArea.innerHTML="";operadorArea.innerHTML=`<div class="card"><h2>🕒 Selecionar turno</h2><select id="turnoSelecionado" onchange="localStorage.setItem('turnoSelecionado',this.value);renderPainelOperador()"><option value="">Escolha o turno</option>${turnosComChecklistHoje().map(t=>`<option value="${t.id}">${t.nome}</option>`).join("")}</select></div><div class="card"><h2>🚨 Pendências</h2><div id="pendencias">Selecione um turno.</div></div><div id="lista"></div>`;turnoSelecionado.value=localStorage.getItem("turnoSelecionado")||"";renderPainelOperador()}
 function cardHTML(c,o,admin=false){const ex=o.exec,st=o.status,idE=o.idExec,classe=classeStatus(st),texto=textoStatus(st,c,ex);const bloqueado=["aguardando","expirado","finalizado","aguardando_envio"].includes(st)||(ex&&ex.status==="executando"&&ex.login!==usuario.login);const pdf=ex?.urlPDF?`<a class="btn blue" target="_blank" href="${ex.urlPDF}">Abrir PDF</a>`:"";const reabrir=(usuario.tipo==="admin"&&["expirado","finalizado"].includes(st))?`<button class="yellow" onclick="reabrirExecucao('${idE}','${c.id}')">Reabrir +1h</button>`:"";return `<div class="card ${classe}"><h2>${c.nome}</h2><div class="sub">${c.descricao}</div><span class="badge ${c.prioridade==='alta'?'red':c.prioridade==='media'?'yellow':'green'}">${c.prioridade.toUpperCase()}</span><span class="badge blue">${c.horario} até ${c.horarioFim}</span><span class="badge gray">Turnos: ${c.turnos.join(", ")}</span>${c.responsaveisPermitidos.length?`<span class="badge black">Responsáveis: ${c.responsaveisPermitidos.join(", ")}</span>`:""}<p><b>Status:</b> ${texto}</p>${pdf}${!admin?`<button ${bloqueado?'disabled':''} onclick="abrirChecklist('${c.id}')">Abrir checklist</button>`:""}${reabrir}</div>`}
@@ -16,21 +16,148 @@ function renderPainelOperador(){const turno=localStorage.getItem("turnoSeleciona
 function dispararAlertas(o){if(o.status==="liberado")alertaUnico(o.idExec,"liberado",1);if(o.status==="atrasado")alertaUnico(o.idExec,"atrasado30",3);if(o.status==="critico")alertaUnico(o.idExec,"critico1h",6,`⚫ CRÍTICO: ${o.checklist.nome} (${o.checklist.horario} até ${o.checklist.horarioFim}) está crítico.`)}
 function abrirChecklist(id){const c=checklistsCarregados.find(x=>x.id===id),idE=execId(c),ex=execCombinada(c),st=statusExecucao(c,ex);if(["aguardando","expirado","finalizado","aguardando_envio"].includes(st)){alert("Este checklist não está disponível.");return}if(ex&&ex.status==="executando"&&ex.login!==usuario.login){alert("Está em execução por "+(ex.nomeUsuario||ex.nome));return}setExecLocal(idE,{idExecucao:idE,status:"executando",login:usuario.login,nomeUsuario:usuario.nome,nome:usuario.nome,inicioISO:new Date().toISOString()});postAPI({acao:"log",tipo:"abriu",login:usuario.login,nomeUsuario:usuario.nome,idChecklist:c.id,nomeChecklist:c.nome,detalhe:"Abriu "+idE});location.href=`checklist.html?id=${encodeURIComponent(id)}&exec=${encodeURIComponent(idE)}`}
 async function reabrirExecucao(idE,idC){if(!confirm("Reabrir esta execução por mais 1 hora?"))return;await postAPI({acao:"reabrirExecucao",idExecucao:idE,idChecklist:idC,login:usuario.login,nomeUsuario:usuario.nome});localStorage.removeItem("exec_"+idE);await carregarBase(true);renderAdmin()}
-async function mostrarUsuarios(){adminConteudo.innerHTML="Carregando...";const us=await carregarUsuariosOnline(true);adminConteudo.innerHTML=`<h3>👥 Usuários</h3><input id="uLogin" placeholder="Login"><input id="uNome" placeholder="Nome"><input id="uSenha" placeholder="Senha"><input id="uTurnos" placeholder="Turnos permitidos: 1manha,2manha ou vazio"><select id="uTipo"><option value="operador">Operador</option><option value="admin">Admin</option></select><button onclick="salvarUser()">Salvar usuário</button><div>${us.map(u=>`<div class="tableItem"><b>${u.nome}</b><br>Login: ${u.login}<br>Tipo: ${u.tipo}<br>Turnos: ${u.turnosPermitidos||"todos permitidos"}</div>`).join("")}</div>`}
-async function salvarUser(){const u={login:uLogin.value.trim(),nome:uNome.value.trim(),senha:uSenha.value.trim(),tipo:uTipo.value,turnosPermitidos:uTurnos.value.trim()};if(!u.login||!u.nome||!u.senha){alert("Preencha login, nome e senha.");return}await salvarUsuarioOnline(u,usuario.login);alert("Usuário salvo.");mostrarUsuarios()}
+
+function turnosUsuarioCheckbox(sel=[]){
+  const lista = turnosCarregados || [];
+  return `<div class="checkGrid">${lista
+    .filter(t=>t.id!=="gerencial")
+    .map(t=>`
+      <label>
+        <input type="checkbox" class="usuarioTurnoCheck" value="${t.id}" ${sel.includes(t.id)?"checked":""}>
+        ${t.nome}
+      </label>
+    `).join("")}</div>
+    <div class="small">Se não marcar nenhum turno, o usuário poderá acessar todos os turnos operacionais.</div>`;
+}
+
+async function mostrarUsuarios(){adminConteudo.innerHTML="Carregando...";const us=await carregarUsuariosOnline(true);adminConteudo.innerHTML=`<h3>👥 Usuários</h3><input id="uLogin" placeholder="Login"><input id="uNome" placeholder="Nome"><input id="uSenha" placeholder="Senha"><h3>Turnos permitidos</h3>${turnosUsuarioCheckbox([])}<select id="uTipo"><option value="operador">Operador</option><option value="admin">Admin</option></select><button onclick="salvarUser()">Salvar usuário</button><div>${us.map(u=>`<div class="tableItem"><b>${u.nome}</b><br>Login: ${u.login}<br>Tipo: ${u.tipo}<br>Turnos: ${u.turnosPermitidos||"todos permitidos"}<button class="secondary" onclick="editarUsuarioAdmin(\`${u.login}\`)">Editar</button></div>`).join("")}</div>`}
+
+function editarUsuarioAdmin(login){
+  const users=JSON.parse(localStorage.getItem("usuariosSistema")||"[]");
+  const u=users.find(x=>normalizarLogin(x.login)===normalizarLogin(login));
+  if(!u)return;
+  uLogin.value=u.login||"";
+  uNome.value=u.nome||"";
+  uSenha.value=u.senha||"";
+  uTipo.value=u.tipo||"operador";
+  const permitidos=parseLista(u.turnosPermitidos||"");
+  document.querySelectorAll(".usuarioTurnoCheck").forEach(ch=>{
+    ch.checked=permitidos.includes(ch.value);
+  });
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function salvarUser(){const turnosPermitidos=[...document.querySelectorAll(".usuarioTurnoCheck:checked")].map(x=>x.value).join(",");const u={login:uLogin.value.trim(),nome:uNome.value.trim(),senha:uSenha.value.trim(),tipo:uTipo.value,turnosPermitidos};if(!u.login||!u.nome||!u.senha){alert("Preencha login, nome e senha.");return}await salvarUsuarioOnline(u,usuario.login);alert("Usuário salvo.");mostrarUsuarios()}
+
+function mostrarTurnos(){
+  adminConteudo.innerHTML=`<h3>🕒 Turnos</h3>
+  <div class="card">
+    <h3>+ Criar novo turno</h3>
+    <input id="tId" placeholder="ID do turno. Ex: 3manha, noturno, estoque">
+    <input id="tNome" placeholder="Nome do turno. Ex: 3º Manhã, Noturno, Estoque">
+    <button onclick="salvarTurnoAdmin()">Salvar turno</button>
+  </div>
+  <h3>Turnos existentes</h3>
+  <div id="listaTurnosAdmin"></div>`;
+  listarTurnosAdmin();
+}
+function listarTurnosAdmin(){
+  const div=document.getElementById("listaTurnosAdmin");
+  div.innerHTML=(turnosCarregados||[]).map(t=>`
+    <div class="tableItem">
+      <b>${t.nome}</b><br>
+      ID: ${t.id}<br>
+      <button class="red" onclick="excluirTurnoAdmin('${t.id}','${t.nome}')">Excluir turno</button>
+    </div>
+  `).join("") || "<p>Nenhum turno cadastrado.</p>";
+}
+async function salvarTurnoAdmin(){
+  const id=tId.value.trim();
+  const nome=tNome.value.trim();
+  if(!id||!nome){alert("Preencha ID e nome do turno.");return;}
+  await postAPI({acao:"saveTurno",id,nome,ativo:"sim",login:usuario.login,nomeUsuario:usuario.nome});
+  alert("Turno salvo.");
+  Mem.turnos=null;
+  await carregarBase(true);
+  mostrarTurnos();
+}
+async function excluirTurnoAdmin(id,nome){
+  if(id==="gerencial"){
+    alert("O turno Gerencial é protegido e não pode ser excluído.");
+    return;
+  }
+  if(!confirm(`Confirma excluir o turno "${nome}"?\n\nAtenção: checklists que usam este turno podem deixar de aparecer para operadores.`))return;
+  await postAPI({acao:"deleteTurno",id,login:usuario.login,nomeUsuario:usuario.nome});
+  alert("Turno excluído.");
+  Mem.turnos=null;
+  await carregarBase(true);
+  mostrarTurnos();
+}
+
 function diasCheckbox(sel=[]){const dias=[["dom","Domingo"],["seg","Segunda"],["ter","Terça"],["qua","Quarta"],["qui","Quinta"],["sex","Sexta"],["sab","Sábado"]];return `<div class="checkGrid">${dias.map(d=>`<label><input type="checkbox" class="diaCheck" value="${d[0]}" ${sel.includes(d[0])?"checked":""}> ${d[1]}</label>`).join("")}</div>`}
-function mostrarNovoChecklist(c=null){adminConteudo.innerHTML=`<h3>➕ Novo / editar checklist</h3><input id="cId" placeholder="ID único" value="${c?.id||""}"><input id="cNome" placeholder="Nome" value="${c?.nome||""}"><textarea id="cDesc" placeholder="Descrição">${c?.descricao||""}</textarea><input id="cHorario" placeholder="Horário início HH:MM" value="${c?.horario||""}"><input id="cHorarioFim" placeholder="Horário fim HH:MM" value="${c?.horarioFim||""}"><input id="cTurnos" placeholder="Turnos: 1manha,2tarde" value="${c?.turnos?.join(",")||""}"><h3>Dias ativos</h3>${diasCheckbox(c?.dias||[])}<input id="cResp" placeholder="Responsáveis por login: 04,08 ou vazio" value="${c?.responsaveisPermitidos?.join(",")||""}"><select id="cPrioridade"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select><select id="cAtivo"><option value="sim">Ativo</option><option value="nao">Inativo</option></select><textarea id="cTarefas" placeholder="Uma tarefa por linha">${c?.tarefas?.join("\\n")||""}</textarea><button onclick="salvarChecklistAdmin()">Salvar checklist</button>`;if(c){cPrioridade.value=c.prioridade;cAtivo.value=c.ativo||"sim"}}
-async function salvarChecklistAdmin(){const dias=[...document.querySelectorAll(".diaCheck:checked")].map(x=>x.value).join(",");const payload={acao:"saveChecklist",id:cId.value.trim(),nome:cNome.value.trim(),descricao:cDesc.value.trim(),horario:cHorario.value.trim(),horarioFim:cHorarioFim.value.trim(),turnos:cTurnos.value.trim(),dias,prioridade:cPrioridade.value,responsaveisPermitidos:cResp.value.trim(),tarefas:cTarefas.value.trim(),ativo:cAtivo.value,login:usuario.login,nomeUsuario:usuario.nome};if(!payload.id||!payload.nome||!payload.horario||!payload.horarioFim){alert("Preencha ID, nome, horário e horário fim.");return}await postAPI(payload);alert("Checklist salvo.");await carregarBase(true);mostrarExistentes()}
+
+function turnosCheckbox(sel=[]){
+  const lista = turnosCarregados || [];
+  return `<div class="checkGrid">${lista.map(t=>`
+    <label>
+      <input type="checkbox" class="turnoCheck" value="${t.id}" ${sel.includes(t.id)?"checked":""}>
+      ${t.nome}
+    </label>
+  `).join("")}</div>`;
+}
+
+function mostrarNovoChecklist(c=null){adminConteudo.innerHTML=`<h3>➕ Novo / editar checklist</h3><input id="cId" placeholder="ID único" value="${c?.id||""}"><input id="cNome" placeholder="Nome" value="${c?.nome||""}"><textarea id="cDesc" placeholder="Descrição">${c?.descricao||""}</textarea><input id="cHorario" placeholder="Horário início. Ex: 21 ou 21:00" value="${c?.horario||""}"><input id="cHorarioFim" placeholder="Horário fim. Ex: 23 ou 23:59" value="${c?.horarioFim||""}"><h3>Turnos ativos</h3>${turnosCheckbox(c?.turnos||[])}<h3>Dias ativos</h3>${diasCheckbox(c?.dias||[])}<input id="cResp" placeholder="Responsáveis por login: 04,08 ou vazio" value="${c?.responsaveisPermitidos?.join(",")||""}"><select id="cPrioridade"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select><select id="cAtivo"><option value="sim">Ativo</option><option value="nao">Inativo</option></select><textarea id="cTarefas" placeholder="Uma tarefa por linha">${c?.tarefas?.join("\\n")||""}</textarea><button onclick="salvarChecklistAdmin()">Salvar checklist</button>`;if(c){cPrioridade.value=c.prioridade;cAtivo.value=c.ativo||"sim"}}
+async function salvarChecklistAdmin(){const dias=[...document.querySelectorAll(".diaCheck:checked")].map(x=>x.value).join(",");const turnos=[...document.querySelectorAll(".turnoCheck:checked")].map(x=>x.value).join(",");const payload={acao:"saveChecklist",id:cId.value.trim(),nome:cNome.value.trim(),descricao:cDesc.value.trim(),horario:normalizarHora(cHorario.value.trim()),horarioFim:normalizarHora(cHorarioFim.value.trim()),turnos,dias,prioridade:cPrioridade.value,responsaveisPermitidos:cResp.value.trim(),tarefas:cTarefas.value.trim(),ativo:cAtivo.value,login:usuario.login,nomeUsuario:usuario.nome};if(!payload.id||!payload.nome||!payload.horario||!payload.horarioFim){alert("Preencha ID, nome, horário e horário fim.");return}if(!payload.turnos){alert("Selecione pelo menos um turno.");return}await postAPI(payload);alert("Checklist salvo.");await carregarBase(true);mostrarExistentes()}
 function mostrarExistentes(){adminConteudo.innerHTML=`<h3>📋 Checklists existentes</h3>`+checklistsTodos.map(c=>{const ativo=c.ativo!=="nao";return `<div class="tableItem"><b>${c.nome}</b><br>${c.horario} até ${c.horarioFim}<br><button class="${ativo?'':'gray'}" onclick="toggleAtivo('${c.id}','${ativo?'nao':'sim'}')">${ativo?'Ativo':'Desativado'}</button><button class="secondary" onclick="editarChecklist('${c.id}')">Editar</button><button class="red" onclick="excluirChecklist('${c.id}')">Excluir</button></div>`}).join("")}
 function editarChecklist(id){mostrarNovoChecklist(checklistsTodos.find(c=>c.id===id))}
 async function toggleAtivo(id,ativo){await postAPI({acao:"toggleChecklist",id,ativo,login:usuario.login,nomeUsuario:usuario.nome});await carregarBase(true);mostrarExistentes()}
 async function excluirChecklist(id){const c=checklistsTodos.find(x=>x.id===id);if(!confirm(`Confirma excluir "${c?.nome||id}"?`))return;await postAPI({acao:"deleteChecklist",id,login:usuario.login,nomeUsuario:usuario.nome});await carregarBase(true);mostrarExistentes()}
 function periodo(tipo){const d=new Date(),pad=n=>String(n).padStart(2,"0");if(tipo==="dia"){const s=hojeISO();return{inicio:s,fim:s}}if(tipo==="mes"){const i=`${d.getFullYear()}-${pad(d.getMonth()+1)}-01`;const f=new Date(d.getFullYear(),d.getMonth()+1,0);return{inicio:i,fim:`${f.getFullYear()}-${pad(f.getMonth()+1)}-${pad(f.getDate())}`}}const day=d.getDay(),diff=(day===0?-6:1-day),mon=new Date(d);mon.setDate(d.getDate()+diff);const sun=new Date(mon);sun.setDate(mon.getDate()+6);return{inicio:`${mon.getFullYear()}-${pad(mon.getMonth()+1)}-${pad(mon.getDate())}`,fim:`${sun.getFullYear()}-${pad(sun.getMonth()+1)}-${pad(sun.getDate())}`}}
 function mostrarRelatorio(){adminConteudo.innerHTML=`<h3>📊 Relatórios</h3><div class="grid three"><button onclick="gerarRel('dia')">Dia</button><button onclick="gerarRel('semana')">Semana</button><button onclick="gerarRel('mes')">Mês</button></div><div id="relOut"></div>`}
-async function gerarRel(tipo){const p=periodo(tipo);relOut.innerHTML="Carregando...";const ex=await carregarExecucoesOnline(p.inicio,p.fim,true);relOut.innerHTML=ex.length?ex.map(e=>`<div class="tableItem"><b>${e.nomeChecklist}</b><br>${e.data} • ${e.horario} até ${e.horarioFim}<br>Status: ${e.status}<br>Usuário: ${e.nomeUsuario||"-"}<br>${e.urlPDF?`<a class="btn blue" target="_blank" href="${e.urlPDF}">Abrir PDF</a>`:""}</div>`).join(""):"Nenhum registro."}
+async function gerarRel(tipo){
+  const p=periodo(tipo);
+  relOut.innerHTML="Carregando...";
+  const ex=await carregarExecucoesOnline(p.inicio,p.fim,true);
+  if(tipo==="dia"){
+    const dia=diaSemanaAtual();
+    const mapa={};
+    ex.forEach(e=>{mapa[e.idExecucao]=e});
+    const linhas=checklistsCarregados
+      .filter(c=>(!c.dias.length||c.dias.includes(dia)))
+      .map(c=>{
+        const idE=execId(c);
+        const e=mapa[idE]||getExecLocal(idE);
+        const st=statusExecucao(c,e);
+        return {checklist:c,idExec:idE,exec:e,status:st};
+      }).sort(ordenarCards);
+    relOut.innerHTML=linhas.length?linhas.map(o=>{
+      const c=o.checklist,e=o.exec,feito=o.status==="finalizado";
+      const nome=feito?nomeExecucao(e):"";
+      const designado=c.responsaveisPermitidos.length?("Responsáveis: "+c.responsaveisPermitidos.join(", ")):("Turnos: "+c.turnos.join(", "));
+      return `<div class="tableItem">
+        <b>${c.nome}</b><br>
+        Liberação: ${hojeISO()} ${c.horario} até ${c.horarioFim}<br>
+        Status: ${textoStatus(o.status,c,e)}<br>
+        ${feito?`Usuário: ${nome||"-"}<br>`:`Designado: ${designado}<br>`}
+        ${e?.urlPDF?`<a class="btn blue" target="_blank" href="${e.urlPDF}">Abrir PDF</a>`:""}
+      </div>`;
+    }).join(""):"Nenhum checklist programado para hoje.";
+    return;
+  }
+  relOut.innerHTML=ex.length?ex.map(e=>{
+    const nome=e.nomeUsuario||nomePorLogin(e.login)||"-";
+    return `<div class="tableItem">
+      <b>${e.nomeChecklist}</b><br>
+      ${e.data} • ${e.horario} até ${e.horarioFim}<br>
+      Status: ${e.status}<br>
+      Usuário: ${nome}<br>
+      ${e.urlPDF?`<a class="btn blue" target="_blank" href="${e.urlPDF}">Abrir PDF</a>`:""}
+    </div>`;
+  }).join(""):"Nenhum registro.";
+}
 function mostrarTodos(){const dia=diaSemanaAtual();const turnos=[...new Set(checklistsCarregados.filter(c=>!c.dias.length||c.dias.includes(dia)).flatMap(c=>c.turnos))];adminConteudo.innerHTML=`<h3>👁️ Todos os checklists de hoje</h3><select id="filtroTodos" onchange="renderTodos()"><option value="">Todos os turnos</option>${turnos.map(t=>`<option value="${t}">${t}</option>`).join("")}</select><div id="todosOut"></div>`;renderTodos()}
 function renderTodos(){const f=filtroTodos.value,dia=diaSemanaAtual();const arr=checklistsCarregados.filter(c=>(!c.dias.length||c.dias.includes(dia))&&(!f||c.turnos.includes(f))).map(c=>({checklist:c,...statusCombinado(c)})).sort(ordenarCards);todosOut.innerHTML=arr.map(o=>cardHTML(o.checklist,o,true)).join("")}
-function atualizarFooter(){footerStatus.innerText=`Painel Operacional v5.0 • ${navigator.onLine?"🟢 Online":"🔴 Offline"} • ${textoUltimaSync()}`}
+function atualizarFooter(){footerStatus.innerText=`Painel Operacional v5.6 • ${navigator.onLine?"🟢 Online":"🔴 Offline"} • ${textoUltimaSync()}`}
 async function init(){await carregarBase(true);renderAdmin();atualizarFooter();setInterval(async()=>{await carregarBase(false);atualizarFooter()},APP.SYNC_INTERVAL_MS)}
 init();if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
