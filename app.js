@@ -1,4 +1,16 @@
 const Mem={usuarios:null,turnos:null,checklists:null,execucoes:null,last:{usuarios:0,turnos:0,checklists:0,execucoes:0},pending:{}};
+function desativarSugestoesCampos(root=document){
+  const filhos=root.querySelectorAll?[...root.querySelectorAll("input, textarea")]:[];
+  const campos=root.matches&&root.matches("input, textarea")?[root,...filhos]:filhos;
+  campos.forEach(campo=>{
+    campo.setAttribute("autocomplete",campo.type==="password"?"new-password":"off");
+    campo.setAttribute("autocorrect","off");
+    campo.setAttribute("autocapitalize","off");
+    campo.setAttribute("spellcheck","false");
+  });
+}
+document.addEventListener("DOMContentLoaded",()=>desativarSugestoesCampos());
+document.addEventListener("focusin",e=>{if(e.target?.matches?.("input, textarea"))desativarSugestoesCampos(e.target)});
 function normalizarLogin(v){const s=String(v||"").trim();return /^\d+$/.test(s)?s.padStart(2,"0"):s}
 function normalizarUsuario(u){
   const login=normalizarLogin(u.login);
@@ -41,7 +53,7 @@ function reaberturaExpirada(ex){
 }
 function diaSemanaAtual(){return ["dom","seg","ter","qua","qui","sex","sab"][new Date().getDay()]}
 function parseLista(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(",").map(x=>x.trim()).filter(Boolean)}
-function parseTarefas(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean)}
+function parseTarefas(v){if(Array.isArray(v))return v.flatMap(x=>String(x).replace(/\\n/g,"\n").split(/\n|;/)).map(x=>x.trim()).filter(Boolean);return String(v||"").replace(/\\n/g,"\n").split(/\n|;/).map(x=>x.trim()).filter(Boolean)}
 function normalizarHora(v){
   const s=String(v||"").trim();
   if(/^\d{1,2}$/.test(s)){
