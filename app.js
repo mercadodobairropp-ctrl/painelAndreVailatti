@@ -78,7 +78,7 @@ function normalizarHora(v){
   return "00:00";
 }
 function normalizarChecklist(c){return{id:String(c.id||"").trim(),nome:String(c.nome||"").trim(),descricao:String(c.descricao||"").trim(),horario:normalizarHora(c.horario),horarioFim:normalizarHora(c.horarioFim||"23:59"),turnos:parseLista(c.turnos),dias:parseLista(String(c.dias||"").toLowerCase()),prioridade:String(c.prioridade||"media").toLowerCase(),responsaveisPermitidos:parseLista(c.responsaveisPermitidos||"").map(normalizarLogin),tarefas:parseTarefas(c.tarefas),ativo:String(c.ativo||"sim").toLowerCase(),empresaId:String(c.empresaId||"").trim()}}
-function normalizarTurno(t){return{id:String(t.id||"").trim(),nome:String(t.nome||"").trim(),ativo:String(t.ativo||"sim").toLowerCase()}}
+function normalizarTurno(t){return{id:String(t.id||"").trim(),nome:String(t.nome||"").trim(),empresaId:String(t.empresaId||"").trim(),ativo:String(t.ativo||"sim").toLowerCase()}}
 function normalizarEmpresa(e){return{id:String(e.id||"").trim(),nome:String(e.nome||"").trim(),turnos:parseLista(e.turnos),ativo:String(e.ativo||"sim").toLowerCase()}}
 function execId(c,data=hojeISO()){return `${data}_${c.id}_${String(c.horario).replace(":","-")}`}
 function getExecLocal(id){try{return JSON.parse(localStorage.getItem("exec_"+id)||"null")}catch(e){return null}}
@@ -106,7 +106,7 @@ function classeStatus(st){return{finalizado:"green",aguardando_envio:"blue",exec
 function textoStatus(st,c,ex){const nome=nomeExecucao(ex);if(st==="finalizado")return`✅ Finalizado${nome?" por "+nome:""}`;if(st==="aguardando_envio")return`🟡 Aguardando envio${nome?" ("+nome+")":""}`;if(st==="executando")return`🟢 Em execução${nome?" por "+nome:""}`;if(st==="reaberto")return`🟢 Reaberto até ${ex?.novoHorarioFim||c.horarioFim}`;if(st==="aguardando")return"⏳ Aguardando horário";if(st==="liberado")return"🟢 Liberado";if(st==="atrasado")return"🔴 Atrasado";if(st==="critico")return"⚫ Crítico";if(st==="expirado")return"❌ Não feito / expirado";return"Pendente"}
 function ordenarCards(a,b){const fa=["finalizado","expirado","aguardando_envio"].includes(a.status)?1:0,fb=["finalizado","expirado","aguardando_envio"].includes(b.status)?1:0;if(fa!==fb)return fa-fb;return horarioParaMinutos(a.checklist.horario)-horarioParaMinutos(b.checklist.horario)}
 function tocarAlarme(c=1){for(let i=0;i<c;i++)setTimeout(()=>{try{navigator.vibrate?.(2000)}catch(e){}try{const a=new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");a.play();setTimeout(()=>{try{a.pause();a.currentTime=0}catch(e){}},2000)}catch(e){}},i*2600)}
-function alertaUnico(id,tipo,ciclos,msg=null){const k=`${id}_${tipo}_alerta_v6`;if(localStorage.getItem(k))return;localStorage.setItem(k,"1");tocarAlarme(ciclos);if(msg)postAPI({acao:"telegram",mensagem:msg})}
+function alertaUnico(id,tipo,ciclos,msg=null){const k=`${id}_${tipo}_alerta_v6`;if(localStorage.getItem(k))return;localStorage.setItem(k,"1");tocarAlarme(ciclos)}
 function nomePdf(c){const a=new Date(),ano=a.getFullYear(),mes=String(a.getMonth()+1).padStart(2,"0"),dia=String(a.getDate()).padStart(2,"0");return`${ano}-${mes}-${dia} - ${c.nome.toLowerCase()} - ${horaArquivo(a)}.pdf`}
 function marcarSync(t=""){localStorage.setItem("ultimaSync",t||new Date().toISOString())}
 function textoUltimaSync(){const s=localStorage.getItem("ultimaSync");if(!s)return"Ainda não sincronizado";const m=Math.floor((Date.now()-new Date(s).getTime())/60000);return m<=0?"Atualizado agora":`Atualizado há ${m} min`}
