@@ -1,11 +1,11 @@
-﻿// Painel Operacional Confiança v6.9
+// Painel Operacional Confiança v6.10
 const PASTA_DRIVE_ID = "1_00PqHAvoQBvkfhtilBrZNsB6AJV9MtG";
 const PLANILHA_ID = "1OViTBjCmDPs56dp2_g6vbIszFau3WNI1LahAbR29X94";
 const TELEGRAM_TOKEN = "8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
 const TELEGRAM_CHAT_ID = "5426828201";
 const ADMIN_MESTRE = "01";
 const ABAS={usuarios:["login","senha","nome","tipo","turnosPermitidos","empresasPermitidas"],turnos:["id","nome","empresaId","ativo"],empresas:["id","nome","turnos","ativo"],checklists:["id","nome","descricao","horario","horarioFim","turnos","dias","prioridade","responsaveisPermitidos","tarefas","ativo","empresaId"],execucoes:["idExecucao","data","idChecklist","nomeChecklist","horario","horarioFim","status","login","nomeUsuario","turno","urlPDF","criadoEm","nomeArquivo","reabertoPor","reabertoEm","novoHorarioFim"],logs:["dataHora","tipo","login","nomeUsuario","idChecklist","nomeChecklist","detalhe"]};
-function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.9"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
+function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.10"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
 function doPost(e){try{setup_();const a=e.parameter.acao||"";if(a==="telegram")return enviarTelegram_(e.parameter.mensagem||"");if(a==="saveUser")return salvarUsuario_(e);if(a==="saveChecklist")return salvarChecklist_(e);if(a==="saveTurno")return salvarTurno_(e);if(a==="saveEmpresa")return salvarEmpresa_(e);if(a==="deleteEmpresa")return deleteEmpresa_(e);if(a==="deleteTurno")return deleteTurno_(e);if(a==="toggleChecklist")return toggleChecklist_(e);if(a==="deleteChecklist")return deleteChecklist_(e);if(a==="iniciarExecucao")return iniciarExecucao_(e);if(a==="finalizarExecucao")return finalizarExecucao_(e);if(a==="reabrirExecucao")return reabrirExecucao_(e);if(a==="log")return log_(e.parameter.tipo,e.parameter.login,e.parameter.nomeUsuario,e.parameter.idChecklist,e.parameter.nomeChecklist,e.parameter.detalhe);return ContentService.createTextOutput("Ação desconhecida: "+a)}catch(err){return ContentService.createTextOutput("ERRO: "+err.toString())}}
 function ss_(){return SpreadsheetApp.openById(PLANILHA_ID)}
 function aba_(nome){const ss=ss_();let sh=ss.getSheetByName(nome);const headers=ABAS[nome];if(!sh){sh=ss.insertSheet(nome);sh.getRange(1,1,1,headers.length).setValues([headers])}const atual=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),headers.length)).getValues()[0].map(String);headers.forEach(h=>{if(atual.indexOf(h)===-1)sh.getRange(1,sh.getLastColumn()+1).setValue(h)});return sh}
@@ -124,7 +124,7 @@ function syncInfo_(){
     return nome+":"+JSON.stringify(vals);
   }).join("|");
   const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,partes).map(b=>("0"+((b+256)%256).toString(16)).slice(-2)).join("").slice(0,10);
-  return {status:"ok",versao:"v6.9",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
+  return {status:"ok",versao:"v6.10",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
 }
 function salvarUsuario_(e){
   const login=normalizarLogin_(e.parameter.login);
@@ -158,6 +158,26 @@ function normalizarHora_(valor){
     return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
   }
   return "00:00";
+}
+
+function parseLista_(v){
+  return String(v||"").split(",").map(function(x){return x.trim()}).filter(Boolean);
+}
+
+function parseTarefas_(v){
+  return String(v||"").replace(/\\n/g,"\n").split(/\n|;/).map(function(x){return x.trim()}).filter(Boolean);
+}
+
+function checklistCompleto_(c){
+  return !!(
+    String(c.id||"").trim() &&
+    String(c.nome||"").trim() &&
+    String(c.empresaId||"").trim() &&
+    parseLista_(c.turnos).length &&
+    parseTarefas_(c.tarefas).length &&
+    normalizarHora_(c.horario)!=="00:00" &&
+    normalizarHora_(c.horarioFim)!=="00:00"
+  );
 }
 
 
@@ -196,7 +216,13 @@ function deleteEmpresa_(e){
   return ContentService.createTextOutput("ok");
 }
 
-function salvarChecklist_(e){upsertObj_("checklists","id",e.parameter.id,{id:e.parameter.id,nome:e.parameter.nome,descricao:e.parameter.descricao,horario:normalizarHora_(e.parameter.horario),horarioFim:normalizarHora_(e.parameter.horarioFim),turnos:e.parameter.turnos,dias:e.parameter.dias,prioridade:e.parameter.prioridade,responsaveisPermitidos:e.parameter.responsaveisPermitidos||"",tarefas:e.parameter.tarefas,ativo:e.parameter.ativo,empresaId:e.parameter.empresaId||""});log_("salvou_checklist",e.parameter.login,e.parameter.nomeUsuario,e.parameter.id,e.parameter.nome,"Checklist salvo");return ContentService.createTextOutput("ok")}
+function salvarChecklist_(e){
+  const obj={id:e.parameter.id,nome:e.parameter.nome,descricao:e.parameter.descricao,horario:normalizarHora_(e.parameter.horario),horarioFim:normalizarHora_(e.parameter.horarioFim),turnos:e.parameter.turnos,dias:e.parameter.dias,prioridade:e.parameter.prioridade,responsaveisPermitidos:e.parameter.responsaveisPermitidos||"",tarefas:e.parameter.tarefas,ativo:e.parameter.ativo,empresaId:e.parameter.empresaId||""};
+  if(!checklistCompleto_(obj))obj.ativo="nao";
+  upsertObj_("checklists","id",obj.id,obj);
+  log_("salvou_checklist",e.parameter.login,e.parameter.nomeUsuario,obj.id,obj.nome,"Checklist salvo"+(obj.ativo==="nao"?" como inativo por cadastro incompleto":""));
+  return ContentService.createTextOutput("ok");
+}
 function upsertObj_(abaNome,keyName,keyValue,obj){
   const sh=aba_(abaNome),vals=sh.getDataRange().getValues(),h=vals[0].map(String),keyCol=h.indexOf(keyName)+1,row=h.map(k=>obj[k]||"");
   const chaveNova = (abaNome==="usuarios" && keyName==="login") ? normalizarLogin_(keyValue) : String(keyValue).trim();
@@ -212,7 +238,14 @@ function upsertObj_(abaNome,keyName,keyValue,obj){
   }
   sh.appendRow(row);
 }
-function toggleChecklist_(e){updateField_("checklists","id",e.parameter.id,"ativo",e.parameter.ativo);log_("toggle_checklist",e.parameter.login,e.parameter.nomeUsuario,e.parameter.id,"","Ativo: "+e.parameter.ativo);return ContentService.createTextOutput("ok")}
+function toggleChecklist_(e){
+  const c=checklistPorId_(e.parameter.id);
+  let ativo=e.parameter.ativo;
+  if(ativo==="sim"&&!checklistCompleto_(c))ativo="nao";
+  updateField_("checklists","id",e.parameter.id,"ativo",ativo);
+  log_("toggle_checklist",e.parameter.login,e.parameter.nomeUsuario,e.parameter.id,"","Ativo: "+ativo);
+  return ContentService.createTextOutput("ok");
+}
 function deleteChecklist_(e){deleteRow_("checklists","id",e.parameter.id);log_("excluiu_checklist",e.parameter.login,e.parameter.nomeUsuario,e.parameter.id,"","Excluído");return ContentService.createTextOutput("ok")}
 function updateField_(abaNome,keyName,keyValue,field,value){const sh=aba_(abaNome),vals=sh.getDataRange().getValues(),h=vals[0].map(String),keyCol=h.indexOf(keyName)+1,fCol=h.indexOf(field)+1;for(let i=1;i<vals.length;i++){if(String(vals[i][keyCol-1]).trim()===String(keyValue).trim()){sh.getRange(i+1,fCol).setValue(value);return}}}
 
@@ -270,9 +303,6 @@ function dataBR_(){
 function diaSemana_(){
   return ["dom","seg","ter","qua","qui","sex","sab"][new Date().getDay()];
 }
-function parseLista_(v){
-  return String(v||"").split(",").map(function(x){return x.trim()}).filter(Boolean);
-}
 function minutos_(h){
   const p=String(h||"00:00").slice(0,5).split(":");
   return (parseInt(p[0]||"0",10)*60)+(parseInt(p[1]||"0",10));
@@ -325,6 +355,7 @@ function verificarChecklistsVencidos_(empresaId){
 
   listar_("checklists").forEach(function(c){
     if(String(c.ativo||"sim").toLowerCase()==="nao")return;
+    if(!checklistCompleto_(c))return;
     if(empresaId&&String(c.empresaId||"").trim()!==String(empresaId).trim())return;
     const dias=parseLista_(String(c.dias||"").toLowerCase());
     if(dias.length&&dias.indexOf(dia)===-1)return;
