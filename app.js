@@ -1,4 +1,12 @@
-const Mem={usuarios:null,turnos:null,checklists:null,execucoes:null,last:{usuarios:0,turnos:0,checklists:0,execucoes:0},pending:{}};
+const Mem={usuarios:null,turnos:null,empresas:null,checklists:null,execucoes:null,last:{usuarios:0,turnos:0,empresas:0,checklists:0,execucoes:0},pending:{}};
+function prepararVersaoLocal(){
+  const v=localStorage.getItem("appVersaoDados");
+  if(v===APP.versao)return;
+  ["usuariosSistema","turnosSistema","empresasSistema","checklistsSistema","ultimaSync","syncRevision","syncServidor"].forEach(k=>localStorage.removeItem(k));
+  Object.keys(localStorage).filter(k=>k.includes("_alerta_v")).forEach(k=>localStorage.removeItem(k));
+  localStorage.setItem("appVersaoDados",APP.versao);
+}
+prepararVersaoLocal();
 function desativarSugestoesCampos(root=document){
   const filhos=root.querySelectorAll?[...root.querySelectorAll("input, textarea")]:[];
   const campos=root.matches&&root.matches("input, textarea")?[root,...filhos]:filhos;
@@ -12,12 +20,13 @@ function desativarSugestoesCampos(root=document){
 document.addEventListener("DOMContentLoaded",()=>desativarSugestoesCampos());
 document.addEventListener("focusin",e=>{if(e.target?.matches?.("input, textarea"))desativarSugestoesCampos(e.target)});
 function normalizarLogin(v){const s=String(v||"").trim();return /^\d+$/.test(s)?s.padStart(2,"0"):s}
+function normalizarSenha(v){const s=String(v??"").trim();return /^\d+\.0$/.test(s)?s.replace(/\.0$/,""):s}
 function normalizarUsuario(u){
   const login=normalizarLogin(u.login);
   let nome=String(u.nome||u.nomeUsuario||u.usuario||"").trim();
   if(!nome && login===APP.ADMIN_MESTRE) nome="Andre";
   if(!nome) nome="Usuário";
-  return {...u,login,nome,tipo:String(u.tipo||"operador").trim().toLowerCase(),turnosPermitidos:String(u.turnosPermitidos||"").trim()};
+  return {...u,login,nome,tipo:String(u.tipo||"operador").trim().toLowerCase(),turnosPermitidos:String(u.turnosPermitidos||"").trim(),empresasPermitidas:String(u.empresasPermitidas||"").trim()};
 }
 function usuarioLogado(){try{const u=JSON.parse(localStorage.getItem("usuarioLogado"));return u?normalizarUsuario(u):null}catch(e){return null}}
 function exigirLogin(){const u=usuarioLogado();if(!u){location.href="login.html";return null}return u}
@@ -35,7 +44,7 @@ function nomeExecucao(ex){
   if(!ex) return "";
   return ex.nomeUsuario || ex.nome || nomePorLogin(ex.login);
 }
-function hojeISO(){return new Date().toISOString().split("T")[0]}
+function hojeISO(d=new Date()){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`}
 function dataBR(d=new Date()){return d.toLocaleDateString("pt-BR")}
 function horaBR(d=new Date()){return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
 function horaArquivo(d=new Date()){return horaBR(d).replace(":","-")}
@@ -68,25 +77,30 @@ function normalizarHora(v){
   }
   return "00:00";
 }
-function normalizarChecklist(c){return{id:String(c.id||"").trim(),nome:String(c.nome||"").trim(),descricao:String(c.descricao||"").trim(),horario:normalizarHora(c.horario),horarioFim:normalizarHora(c.horarioFim||"23:59"),turnos:parseLista(c.turnos),dias:parseLista(String(c.dias||"").toLowerCase()),prioridade:String(c.prioridade||"media").toLowerCase(),responsaveisPermitidos:parseLista(c.responsaveisPermitidos||""),tarefas:parseTarefas(c.tarefas),ativo:String(c.ativo||"sim").toLowerCase()}}
+function normalizarChecklist(c){return{id:String(c.id||"").trim(),nome:String(c.nome||"").trim(),descricao:String(c.descricao||"").trim(),horario:normalizarHora(c.horario),horarioFim:normalizarHora(c.horarioFim||"23:59"),turnos:parseLista(c.turnos),dias:parseLista(String(c.dias||"").toLowerCase()),prioridade:String(c.prioridade||"media").toLowerCase(),responsaveisPermitidos:parseLista(c.responsaveisPermitidos||"").map(normalizarLogin),tarefas:parseTarefas(c.tarefas),ativo:String(c.ativo||"sim").toLowerCase(),empresaId:String(c.empresaId||"").trim()}}
 function normalizarTurno(t){return{id:String(t.id||"").trim(),nome:String(t.nome||"").trim(),ativo:String(t.ativo||"sim").toLowerCase()}}
+function normalizarEmpresa(e){return{id:String(e.id||"").trim(),nome:String(e.nome||"").trim(),turnos:parseLista(e.turnos),ativo:String(e.ativo||"sim").toLowerCase()}}
 function execId(c,data=hojeISO()){return `${data}_${c.id}_${String(c.horario).replace(":","-")}`}
 function getExecLocal(id){try{return JSON.parse(localStorage.getItem("exec_"+id)||"null")}catch(e){return null}}
 function setExecLocal(id,d){localStorage.setItem("exec_"+id,JSON.stringify(d))}
 function removeExecLocal(id){localStorage.removeItem("exec_"+id)}
-function postAPI(data){return fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)})}
+function postAPI(data,timeoutMs=0){const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)});if(!timeoutMs)return envio;return Promise.race([envio,new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),timeoutMs))])}
 function jsonp(acao,params={}){return new Promise((resolve,reject)=>{const cb="cb_"+Date.now()+"_"+Math.floor(Math.random()*99999);const qs=new URLSearchParams({...params,acao,callback:cb});const s=document.createElement("script");window[cb]=d=>{resolve(d);delete window[cb];s.remove()};s.onerror=()=>{delete window[cb];s.remove();reject(new Error("Falha ao conectar ao servidor"))};s.src=APP.API_URL+"?"+qs.toString();document.body.appendChild(s)})}
+async function carregarSyncInfo(){try{const d=await jsonp("getSyncInfo");if(d?.status==="ok"){localStorage.setItem("syncRevision",d.revision||"");localStorage.setItem("syncServidor",d.servidorEm||"");return d}}catch(e){}return null}
 function cacheOk(tipo){return Date.now()-(Mem.last[tipo]||0)<APP.CACHE_MS}
 function pendente(chave,fn){if(Mem.pending[chave])return Mem.pending[chave];Mem.pending[chave]=fn().finally(()=>delete Mem.pending[chave]);return Mem.pending[chave]}
 async function carregarUsuariosOnline(force=false){if(!force&&Mem.usuarios&&cacheOk("usuarios"))return Mem.usuarios;return pendente("usuarios",async()=>{const d=await jsonp("getUsers");if(d?.status==="ok"){Mem.usuarios=(d.usuarios||[]).map(normalizarUsuario);localStorage.setItem("usuariosSistema",JSON.stringify(Mem.usuarios));Mem.last.usuarios=Date.now();return Mem.usuarios}throw new Error("Erro ao carregar usuários")})}
 async function salvarUsuarioOnline(u,ator){await postAPI({...u,acao:"saveUser",atorLogin:ator||""});Mem.usuarios=null;Mem.last.usuarios=0}
 async function carregarTurnosOnline(force=false){if(!force&&Mem.turnos&&cacheOk("turnos"))return Mem.turnos;return pendente("turnos",async()=>{const d=await jsonp("getTurnos");if(d?.status==="ok"){Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos));Mem.last.turnos=Date.now();return Mem.turnos}throw new Error("Erro ao carregar turnos")})}
+async function carregarEmpresasOnline(force=false){if(!force&&Mem.empresas&&cacheOk("empresas"))return Mem.empresas;return pendente("empresas",async()=>{const d=await jsonp("getEmpresas");if(d?.status==="ok"){Mem.empresas=(d.empresas||[]).map(normalizarEmpresa).filter(e=>e.id&&e.ativo!=="nao");localStorage.setItem("empresasSistema",JSON.stringify(Mem.empresas));Mem.last.empresas=Date.now();return Mem.empresas}throw new Error("Erro ao carregar empresas")})}
 async function carregarChecklistsOnline(force=false,incluirInativos=false){if(!force&&Mem.checklists&&cacheOk("checklists"))return incluirInativos?Mem.checklists:Mem.checklists.filter(c=>c.ativo!=="nao");const lista=await pendente("checklists",async()=>{const d=await jsonp("getChecklists");if(d?.status==="ok"){Mem.checklists=(d.checklists||[]).map(normalizarChecklist).filter(c=>c.id&&c.nome);localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists));Mem.last.checklists=Date.now();return Mem.checklists}throw new Error("Erro ao carregar checklists")});return incluirInativos?lista:lista.filter(c=>c.ativo!=="nao")}
 async function carregarExecucoesOnline(inicio="",fim="",force=false){const chave=`execucoes_${inicio}_${fim}`;if(!force&&Mem.execucoes&&cacheOk("execucoes"))return Mem.execucoes;return pendente(chave,async()=>{const d=await jsonp("getExecucoes",{inicio,fim});if(d?.status==="ok"){Mem.execucoes=d.execucoes||[];Mem.last.execucoes=Date.now();return Mem.execucoes}return[]})}
 async function obterTurnos(){try{return await carregarTurnosOnline()}catch(e){const c=localStorage.getItem("turnosSistema");return c?JSON.parse(c):APP.DEFAULT_TURNOS}}
+async function obterEmpresas(){try{return await carregarEmpresasOnline()}catch(e){const c=localStorage.getItem("empresasSistema");return c?JSON.parse(c):[]}}
 async function obterChecklists(incluirInativos=false){try{return await carregarChecklistsOnline(false,incluirInativos)}catch(e){const c=localStorage.getItem("checklistsSistema");let a=c?JSON.parse(c):[];return incluirInativos?a:a.filter(x=>x.ativo!=="nao")}}
-function usuarioPodeVerTurno(u,t){if(u.tipo==="admin")return true;if(t==="gerencial")return false;const p=parseLista(u.turnosPermitidos||"");return !p.length||p.includes(t)}
-function checklistPermitidoUsuario(c,u,t){if(u.tipo==="admin")return true;if(!c.turnos.includes(t))return false;const p=c.responsaveisPermitidos||[];return !p.length||p.includes(u.login)}
+function usuarioPodeVerTurno(u,t){if(u.tipo==="admin")return true;if(t==="gerencial")return false;const p=parseLista(u.turnosPermitidos||"");return !p.length||p.includes("todos")||p.includes(t)}
+function usuarioPodeVerEmpresa(u,e){if(u.tipo==="admin")return true;if(!e)return true;const p=parseLista(u.empresasPermitidas||"");return !p.length||p.includes("todos")||p.includes(e)}
+function checklistPermitidoUsuario(c,u,t){if(u.tipo==="admin")return true;if(!c.turnos.includes(t))return false;return usuarioPodeVerEmpresa(u,c.empresaId)}
 function statusExecucao(c,ex=null){const now=agoraMinutos(),ini=horarioParaMinutos(c.horario),fim=horarioParaMinutos(c.horarioFim);if(ex){if(["finalizado","aguardando_envio"].includes(ex.status))return ex.status;if(ex.status==="executando")return(ex.novoHorarioFim||ex.reabertoEm)&&reaberturaExpirada(ex)?"expirado":"executando";if(ex.status==="reaberto")return reaberturaExpirada(ex)?"expirado":"reaberto";if(ex.status==="expirado")return"expirado"}if(now<ini)return"aguardando";if(now>fim)return"expirado";if(now-ini>=60)return"critico";if(now-ini>=30)return"atrasado";return"liberado"}
 function classeStatus(st){return{finalizado:"green",aguardando_envio:"blue",executando:"green",reaberto:"green",aguardando:"gray",liberado:"green",atrasado:"red",critico:"darkred",expirado:"gray"}[st]||"gray"}
 function textoStatus(st,c,ex){const nome=nomeExecucao(ex);if(st==="finalizado")return`✅ Finalizado${nome?" por "+nome:""}`;if(st==="aguardando_envio")return`🟡 Aguardando envio${nome?" ("+nome+")":""}`;if(st==="executando")return`🟢 Em execução${nome?" por "+nome:""}`;if(st==="reaberto")return`🟢 Reaberto até ${ex?.novoHorarioFim||c.horarioFim}`;if(st==="aguardando")return"⏳ Aguardando horário";if(st==="liberado")return"🟢 Liberado";if(st==="atrasado")return"🔴 Atrasado";if(st==="critico")return"⚫ Crítico";if(st==="expirado")return"❌ Não feito / expirado";return"Pendente"}
