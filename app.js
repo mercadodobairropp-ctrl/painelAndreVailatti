@@ -107,7 +107,7 @@ async function carregarPacoteOnline(inicio=hojeISO(),fim=hojeISO(),force=false){
   return pendente(chave,async()=>{
     try{
       const d=await jsonpRetry("getBase",{inicio,fim},2,force?26000:16000);
-      if(d?.status==="ok"){
+      if(d?.status==="ok"&&Array.isArray(d.turnos)&&Array.isArray(d.empresas)&&Array.isArray(d.checklists)){
         const agora=Date.now();
         Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");
         Mem.empresas=(d.empresas||[]).map(normalizarEmpresa).filter(e=>e.id&&e.ativo!=="nao");

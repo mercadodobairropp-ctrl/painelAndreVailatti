@@ -4,7 +4,7 @@ const PLANILHA_ID = "1OViTBjCmDPs56dp2_g6vbIszFau3WNI1LahAbR29X94";
 const TELEGRAM_TOKEN = "8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
 const TELEGRAM_CHAT_ID = "5426828201";
 const ADMIN_MESTRE = "01";
-const SETUP_VERSION = "v6.12";
+const SETUP_VERSION = "v6.12-gsfix";
 const ABAS={usuarios:["login","senha","nome","tipo","turnosPermitidos","empresasPermitidas"],turnos:["id","nome","empresaId","ativo"],empresas:["id","nome","turnos","ativo"],checklists:["id","nome","descricao","horario","horarioFim","turnos","dias","prioridade","responsaveisPermitidos","tarefas","ativo","empresaId"],execucoes:["idExecucao","data","idChecklist","nomeChecklist","horario","horarioFim","status","login","nomeUsuario","turno","urlPDF","criadoEm","nomeArquivo","reabertoPor","reabertoEm","novoHorarioFim"],logs:["dataHora","tipo","login","nomeUsuario","idChecklist","nomeChecklist","detalhe"]};
 let SS_CACHE=null;
 function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.12"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getBase")r=baseDados_(e.parameter.inicio,e.parameter.fim);if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
@@ -130,13 +130,41 @@ function revisionDados_(partes){
   const texto=JSON.stringify(partes);
   return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,texto).map(b=>("0"+((b+256)%256).toString(16)).slice(-2)).join("").slice(0,10);
 }
+function empresaPorTurno_(empresas){
+  const mapa={};
+  empresas.forEach(function(e){
+    parseLista_(e.turnos).forEach(function(id){if(id&&!mapa[id])mapa[id]=String(e.id||"").trim()});
+  });
+  return mapa;
+}
+function completarVinculosEmpresa_(dados){
+  const empresas=(dados.empresas||[]).filter(function(e){return String(e.ativo||"sim").toLowerCase()!=="nao"});
+  const mapa=empresaPorTurno_(empresas);
+  const turnos=(dados.turnos||[]).map(function(t){
+    const o=Object.assign({},t);
+    if(!String(o.empresaId||"").trim()&&mapa[o.id])o.empresaId=mapa[o.id];
+    return o;
+  });
+  const checklists=(dados.checklists||[]).map(function(c){
+    const o=Object.assign({},c);
+    if(!String(o.empresaId||"").trim()){
+      const turnos=parseLista_(o.turnos);
+      for(var i=0;i<turnos.length;i++){
+        if(mapa[turnos[i]]){o.empresaId=mapa[turnos[i]];break}
+      }
+    }
+    if(!checklistCompleto_(o))o.ativo="nao";
+    return o;
+  });
+  return {turnos:turnos,empresas:empresas,checklists:checklists,execucoes:dados.execucoes||[]};
+}
 function baseDados_(inicio,fim){
-  const dados={
+  const dados=completarVinculosEmpresa_({
     turnos:listar_("turnos"),
     empresas:listar_("empresas"),
     checklists:listar_("checklists"),
     execucoes:listarExecucoes_(inicio,fim)
-  };
+  });
   return {
     status:"ok",
     versao:"v6.12",
