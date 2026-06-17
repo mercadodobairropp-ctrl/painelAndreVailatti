@@ -1,13 +1,16 @@
-// Painel Operacional Confiança v6.10
+﻿// Painel Operacional Confiança v6.12
 const PASTA_DRIVE_ID = "1_00PqHAvoQBvkfhtilBrZNsB6AJV9MtG";
 const PLANILHA_ID = "1OViTBjCmDPs56dp2_g6vbIszFau3WNI1LahAbR29X94";
 const TELEGRAM_TOKEN = "8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
 const TELEGRAM_CHAT_ID = "5426828201";
 const ADMIN_MESTRE = "01";
+const SETUP_VERSION = "v6.12";
 const ABAS={usuarios:["login","senha","nome","tipo","turnosPermitidos","empresasPermitidas"],turnos:["id","nome","empresaId","ativo"],empresas:["id","nome","turnos","ativo"],checklists:["id","nome","descricao","horario","horarioFim","turnos","dias","prioridade","responsaveisPermitidos","tarefas","ativo","empresaId"],execucoes:["idExecucao","data","idChecklist","nomeChecklist","horario","horarioFim","status","login","nomeUsuario","turno","urlPDF","criadoEm","nomeArquivo","reabertoPor","reabertoEm","novoHorarioFim"],logs:["dataHora","tipo","login","nomeUsuario","idChecklist","nomeChecklist","detalhe"]};
-function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.10"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
+let SS_CACHE=null;
+function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.12"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getBase")r=baseDados_(e.parameter.inicio,e.parameter.fim);if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
 function doPost(e){try{setup_();const a=e.parameter.acao||"";if(a==="telegram")return enviarTelegram_(e.parameter.mensagem||"");if(a==="saveUser")return salvarUsuario_(e);if(a==="saveChecklist")return salvarChecklist_(e);if(a==="saveTurno")return salvarTurno_(e);if(a==="saveEmpresa")return salvarEmpresa_(e);if(a==="deleteEmpresa")return deleteEmpresa_(e);if(a==="deleteTurno")return deleteTurno_(e);if(a==="toggleChecklist")return toggleChecklist_(e);if(a==="deleteChecklist")return deleteChecklist_(e);if(a==="iniciarExecucao")return iniciarExecucao_(e);if(a==="cancelarExecucao")return cancelarExecucao_(e);if(a==="finalizarExecucao")return finalizarExecucao_(e);if(a==="reabrirExecucao")return reabrirExecucao_(e);if(a==="log")return log_(e.parameter.tipo,e.parameter.login,e.parameter.nomeUsuario,e.parameter.idChecklist,e.parameter.nomeChecklist,e.parameter.detalhe);return ContentService.createTextOutput("Ação desconhecida: "+a)}catch(err){return ContentService.createTextOutput("ERRO: "+err.toString())}}
-function ss_(){return SpreadsheetApp.openById(PLANILHA_ID)}
+function ss_(){if(!SS_CACHE)SS_CACHE=SpreadsheetApp.openById(PLANILHA_ID);return SS_CACHE}
+function sheet_(nome){return ss_().getSheetByName(nome)||aba_(nome)}
 function aba_(nome){const ss=ss_();let sh=ss.getSheetByName(nome);const headers=ABAS[nome];if(!sh){sh=ss.insertSheet(nome);sh.getRange(1,1,1,headers.length).setValues([headers])}const atual=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),headers.length)).getValues()[0].map(String);headers.forEach(h=>{if(atual.indexOf(h)===-1)sh.getRange(1,sh.getLastColumn()+1).setValue(h)});return sh}
 
 function normalizarLogin_(login){
@@ -80,7 +83,14 @@ function normalizarAbaUsuarios_(){
   sh.getRange(1, 1, novos.length, canonical.length).setValues(novos);
 }
 
-function setup_(){Object.keys(ABAS).forEach(aba_);seed_();normalizarAbaUsuarios_()}
+function setup_(){
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty("setup_version")===SETUP_VERSION)return;
+  Object.keys(ABAS).forEach(aba_);
+  seed_();
+  normalizarAbaUsuarios_();
+  props.setProperty("setup_version",SETUP_VERSION);
+}
 function seed_(){const u=aba_("usuarios");if(u.getLastRow()===1){u.appendRow(["01","7421","Andre","admin","todos","todos"]);u.appendRow(["02","7421","Katia","operador","",""]);u.appendRow(["04","1111","Maria","operador","",""]);u.appendRow(["08","0000","Tauna","operador","",""])}const t=aba_("turnos");if(t.getLastRow()===1){[["gerencial","Gerencial","","sim"]].forEach(r=>t.appendRow(r))}}
 function formatCell_(v,campo){
   if(Object.prototype.toString.call(v)==="[object Date]"){
@@ -91,7 +101,7 @@ function formatCell_(v,campo){
   return String(v==null?"":v);
 }
 function listar_(nome){
-  const sh=aba_(nome),vals=sh.getDataRange().getValues(),h=vals[0].map(String),out=[];
+  const sh=sheet_(nome),vals=sh.getDataRange().getValues(),h=vals[0].map(String),out=[];
   const mapaUsuarios = {};
 
   for(let i=1;i<vals.length;i++){
@@ -116,6 +126,28 @@ function listar_(nome){
   return out;
 }
 function listarExecucoes_(inicio,fim){return listar_("execucoes").filter(r=>(!inicio||r.data>=inicio)&&(!fim||r.data<=fim))}
+function revisionDados_(partes){
+  const texto=JSON.stringify(partes);
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,texto).map(b=>("0"+((b+256)%256).toString(16)).slice(-2)).join("").slice(0,10);
+}
+function baseDados_(inicio,fim){
+  const dados={
+    turnos:listar_("turnos"),
+    empresas:listar_("empresas"),
+    checklists:listar_("checklists"),
+    execucoes:listarExecucoes_(inicio,fim)
+  };
+  return {
+    status:"ok",
+    versao:"v6.12",
+    revision:revisionDados_(dados),
+    servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss"),
+    turnos:dados.turnos,
+    empresas:dados.empresas,
+    checklists:dados.checklists,
+    execucoes:dados.execucoes
+  };
+}
 function syncInfo_(){
   const nomes=["usuarios","turnos","empresas","checklists","execucoes"];
   const partes=nomes.map(nome=>{
@@ -124,7 +156,7 @@ function syncInfo_(){
     return nome+":"+JSON.stringify(vals);
   }).join("|");
   const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,partes).map(b=>("0"+((b+256)%256).toString(16)).slice(-2)).join("").slice(0,10);
-  return {status:"ok",versao:"v6.10",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
+  return {status:"ok",versao:"v6.12",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
 }
 function salvarUsuario_(e){
   const login=normalizarLogin_(e.parameter.login);

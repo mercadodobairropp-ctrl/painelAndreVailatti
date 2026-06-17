@@ -1,4 +1,5 @@
-const Mem={usuarios:null,turnos:null,empresas:null,checklists:null,execucoes:null,last:{usuarios:0,turnos:0,empresas:0,checklists:0,execucoes:0},pending:{}};
+﻿const Mem={usuarios:null,turnos:null,empresas:null,checklists:null,execucoes:null,last:{usuarios:0,turnos:0,empresas:0,checklists:0,execucoes:0},pending:{}};
+const NET={jsonpTimeout:22000,jsonpRetryDelay:650,postTimeout:18000};
 function prepararVersaoLocal(){
   const v=localStorage.getItem("appVersaoDados");
   if(v===APP.versao)return;
@@ -86,19 +87,46 @@ function execId(c,data=hojeISO()){return `${data}_${c.id}_${String(c.horario).re
 function getExecLocal(id){try{return JSON.parse(localStorage.getItem("exec_"+id)||"null")}catch(e){return null}}
 function setExecLocal(id,d){localStorage.setItem("exec_"+id,JSON.stringify(d))}
 function removeExecLocal(id){localStorage.removeItem("exec_"+id)}
-function postAPI(data,timeoutMs=0){const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)});if(!timeoutMs)return envio;return Promise.race([envio,new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),timeoutMs))])}
-function jsonp(acao,params={}){return new Promise((resolve,reject)=>{const cb="cb_"+Date.now()+"_"+Math.floor(Math.random()*99999);const qs=new URLSearchParams({...params,acao,callback:cb});const s=document.createElement("script");window[cb]=d=>{resolve(d);delete window[cb];s.remove()};s.onerror=()=>{delete window[cb];s.remove();reject(new Error("Falha ao conectar ao servidor"))};s.src=APP.API_URL+"?"+qs.toString();document.body.appendChild(s)})}
-async function carregarSyncInfo(){try{const d=await jsonp("getSyncInfo");if(d?.status==="ok"){localStorage.setItem("syncRevision",d.revision||"");localStorage.setItem("syncServidor",d.servidorEm||"");return d}}catch(e){}return null}
+function postAPI(data,timeoutMs=NET.postTimeout){
+  const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data),keepalive:true});
+  if(!timeoutMs)return envio;
+  return Promise.race([envio,new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),timeoutMs))]);
+}
+function jsonp(acao,params={},timeoutMs=NET.jsonpTimeout){return new Promise((resolve,reject)=>{const cb="cb_"+Date.now()+"_"+Math.floor(Math.random()*99999);const qs=new URLSearchParams({...params,acao,callback:cb,_:Date.now()});const s=document.createElement("script");let done=false;const limpar=()=>{clearTimeout(timer);delete window[cb];s.remove()};const timer=setTimeout(()=>{if(done)return;done=true;limpar();reject(new Error("Tempo esgotado ao conectar ao servidor"))},timeoutMs);window[cb]=d=>{if(done)return;done=true;limpar();resolve(d)};s.onerror=()=>{if(done)return;done=true;limpar();reject(new Error("Falha ao conectar ao servidor"))};s.src=APP.API_URL+"?"+qs.toString();document.body.appendChild(s)})}
+async function jsonpRetry(acao,params={},tentativas=2,timeoutMs=NET.jsonpTimeout){let erro;for(let i=0;i<tentativas;i++){try{return await jsonp(acao,params,timeoutMs)}catch(e){erro=e;if(i<tentativas-1)await new Promise(r=>setTimeout(r,NET.jsonpRetryDelay))}}throw erro}
 function cacheOk(tipo){return Date.now()-(Mem.last[tipo]||0)<APP.CACHE_MS}
 function pendente(chave,fn){if(Mem.pending[chave])return Mem.pending[chave];Mem.pending[chave]=fn().finally(()=>delete Mem.pending[chave]);return Mem.pending[chave]}
 async function carregarUsuariosOnline(force=false){if(!force&&Mem.usuarios&&cacheOk("usuarios"))return Mem.usuarios;return pendente("usuarios",async()=>{const d=await jsonp("getUsers");if(d?.status==="ok"){Mem.usuarios=(d.usuarios||[]).map(normalizarUsuario);localStorage.setItem("usuariosSistema",JSON.stringify(Mem.usuarios));Mem.last.usuarios=Date.now();return Mem.usuarios}throw new Error("Erro ao carregar usuários")})}
-async function salvarUsuarioOnline(u,ator){await postAPI({...u,acao:"saveUser",atorLogin:ator||""});Mem.usuarios=null;Mem.last.usuarios=0}
 async function carregarTurnosOnline(force=false){if(!force&&Mem.turnos&&cacheOk("turnos"))return Mem.turnos;return pendente("turnos",async()=>{const d=await jsonp("getTurnos");if(d?.status==="ok"){Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos));Mem.last.turnos=Date.now();return Mem.turnos}throw new Error("Erro ao carregar turnos")})}
 async function carregarEmpresasOnline(force=false){if(!force&&Mem.empresas&&cacheOk("empresas"))return Mem.empresas;return pendente("empresas",async()=>{const d=await jsonp("getEmpresas");if(d?.status==="ok"){Mem.empresas=(d.empresas||[]).map(normalizarEmpresa).filter(e=>e.id&&e.ativo!=="nao");localStorage.setItem("empresasSistema",JSON.stringify(Mem.empresas));Mem.last.empresas=Date.now();return Mem.empresas}throw new Error("Erro ao carregar empresas")})}
 async function carregarChecklistsOnline(force=false,incluirInativos=false){if(!force&&Mem.checklists&&cacheOk("checklists"))return incluirInativos?Mem.checklists:Mem.checklists.filter(c=>c.ativo!=="nao");const lista=await pendente("checklists",async()=>{const d=await jsonp("getChecklists");if(d?.status==="ok"){Mem.checklists=(d.checklists||[]).map(normalizarChecklist).filter(c=>c.id&&c.nome);localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists));Mem.last.checklists=Date.now();return Mem.checklists}throw new Error("Erro ao carregar checklists")});return incluirInativos?lista:lista.filter(c=>c.ativo!=="nao")}
 async function carregarExecucoesOnline(inicio="",fim="",force=false){const chave=`execucoes_${inicio}_${fim}`;if(!force&&Mem.execucoes&&cacheOk("execucoes"))return Mem.execucoes;return pendente(chave,async()=>{const d=await jsonp("getExecucoes",{inicio,fim});if(d?.status==="ok"){Mem.execucoes=d.execucoes||[];Mem.last.execucoes=Date.now();return Mem.execucoes}return[]})}
-async function obterTurnos(){try{return await carregarTurnosOnline()}catch(e){const c=localStorage.getItem("turnosSistema");return c?JSON.parse(c):APP.DEFAULT_TURNOS}}
-async function obterEmpresas(){try{return await carregarEmpresasOnline()}catch(e){const c=localStorage.getItem("empresasSistema");return c?JSON.parse(c):[]}}
+async function carregarPacoteOnline(inicio=hojeISO(),fim=hojeISO(),force=false){
+  const chave=`base_${inicio}_${fim}`;
+  if(!force&&Mem.turnos&&Mem.empresas&&Mem.checklists&&Mem.execucoes&&cacheOk("turnos")&&cacheOk("empresas")&&cacheOk("checklists")&&cacheOk("execucoes"))return{sync:null,turnos:Mem.turnos,empresas:Mem.empresas,checklists:Mem.checklists,execucoes:Mem.execucoes};
+  return pendente(chave,async()=>{
+    try{
+      const d=await jsonpRetry("getBase",{inicio,fim},2,force?26000:16000);
+      if(d?.status==="ok"){
+        const agora=Date.now();
+        Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");
+        Mem.empresas=(d.empresas||[]).map(normalizarEmpresa).filter(e=>e.id&&e.ativo!=="nao");
+        Mem.checklists=(d.checklists||[]).map(normalizarChecklist).filter(c=>c.id&&c.nome);
+        Mem.execucoes=d.execucoes||[];
+        salvarCacheBase(d,agora);
+        return{sync:d,turnos:Mem.turnos,empresas:Mem.empresas,checklists:Mem.checklists,execucoes:Mem.execucoes};
+      }
+      throw new Error("Erro ao carregar base");
+    }catch(e){
+      const fallback=baseLocal();
+      if(fallback.turnos.length||fallback.empresas.length||fallback.checklists.length)return{sync:null,...fallback,offline:true};
+      throw e;
+    }
+  });
+}
+function salvarCacheBase(d,agora=Date.now()){localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos||[]));localStorage.setItem("empresasSistema",JSON.stringify(Mem.empresas||[]));localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists||[]));if(d?.revision)localStorage.setItem("syncRevision",d.revision||"");if(d?.servidorEm)localStorage.setItem("syncServidor",d.servidorEm||"");["turnos","empresas","checklists","execucoes"].forEach(k=>Mem.last[k]=agora)}
+function listaLocal(key,def=[]){try{const v=localStorage.getItem(key);return v?JSON.parse(v):def}catch(e){return def}}
+function baseLocal(){return{turnos:listaLocal("turnosSistema",APP.DEFAULT_TURNOS),empresas:listaLocal("empresasSistema",[]),checklists:listaLocal("checklistsSistema",[]),execucoes:Mem.execucoes||[]}}
 async function obterChecklists(incluirInativos=false){try{return await carregarChecklistsOnline(false,incluirInativos)}catch(e){const c=localStorage.getItem("checklistsSistema");let a=c?JSON.parse(c):[];return incluirInativos?a:a.filter(x=>x.ativo!=="nao")}}
 function usuarioPodeVerTurno(u,t){if(u.tipo==="admin")return true;if(t==="gerencial")return false;const p=parseLista(u.turnosPermitidos||"");return p.includes("todos")||p.includes(t)}
 function usuarioPodeVerEmpresa(u,e){if(u.tipo==="admin")return true;if(!e)return false;const p=parseLista(u.empresasPermitidas||"");return p.includes("todos")||p.includes(e)}
@@ -118,5 +146,5 @@ function marcarSync(t=""){localStorage.setItem("ultimaSync",t||new Date().toISOS
 function textoUltimaSync(){const s=localStorage.getItem("ultimaSync");if(!s)return"Ainda não sincronizado";const m=Math.floor((Date.now()-new Date(s).getTime())/60000);return m<=0?"Atualizado agora":`Atualizado há ${m} min`}
 function confirmarAcao({titulo="Confirmar ação",texto="",confirmar="Confirmar",cancelar="Cancelar",perigo=false}={}){return new Promise(resolve=>{let modal=document.getElementById("confirmModal");if(!modal){modal=document.createElement("div");modal.id="confirmModal";modal.className="modal";modal.innerHTML=`<div class="modalContent confirmModal"><h2 id="confirmTitulo"></h2><p id="confirmTexto"></p><div class="confirmActions"><button id="confirmCancelar" class="secondary" type="button"></button><button id="confirmOk" type="button"></button></div></div>`;document.body.appendChild(modal)}const ok=document.getElementById("confirmOk"),cancel=document.getElementById("confirmCancelar");document.getElementById("confirmTitulo").innerText=titulo;document.getElementById("confirmTexto").innerText=texto;ok.innerText=confirmar;ok.className=perigo?"red":"";cancel.innerText=cancelar;modal.style.display="flex";const fechar=v=>{modal.style.display="none";ok.onclick=null;cancel.onclick=null;resolve(v)};ok.onclick=()=>fechar(true);cancel.onclick=()=>fechar(false)})}
 async function enfileirarEnvio(payload){const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");f.push({...payload,criadoEm:new Date().toISOString()});localStorage.setItem("filaEnvio",JSON.stringify(f))}
-async function processarFila(){if(!navigator.onLine)return;const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");if(!f.length)return;const r=[];for(const item of f){try{await postAPI(item)}catch(e){r.push(item)}}localStorage.setItem("filaEnvio",JSON.stringify(r))}
+async function processarFila(){if(!navigator.onLine)return;const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");if(!f.length)return;const r=[];for(const item of f){try{await postAPI(item,NET.postTimeout)}catch(e){r.push(item)}}localStorage.setItem("filaEnvio",JSON.stringify(r))}
 window.addEventListener("online",processarFila);setInterval(processarFila,60000);
