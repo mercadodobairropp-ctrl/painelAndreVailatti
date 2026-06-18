@@ -1,13 +1,13 @@
-﻿// Painel Operacional Confiança v6.12
+﻿// Painel Operacional Confiança v6.14
 const PASTA_DRIVE_ID = "1_00PqHAvoQBvkfhtilBrZNsB6AJV9MtG";
 const PLANILHA_ID = "1OViTBjCmDPs56dp2_g6vbIszFau3WNI1LahAbR29X94";
 const TELEGRAM_TOKEN = "8414044142:AAHoof4NoOkqiM1FfeY9EmMekfodnqh0LN8";
 const TELEGRAM_CHAT_ID = "5426828201";
 const ADMIN_MESTRE = "01";
-const SETUP_VERSION = "v6.12-gsfix";
+const SETUP_VERSION = "v6.14";
 const ABAS={usuarios:["login","senha","nome","tipo","turnosPermitidos","empresasPermitidas"],turnos:["id","nome","empresaId","ativo"],empresas:["id","nome","turnos","ativo"],checklists:["id","nome","descricao","horario","horarioFim","turnos","dias","prioridade","responsaveisPermitidos","tarefas","ativo","empresaId"],execucoes:["idExecucao","data","idChecklist","nomeChecklist","horario","horarioFim","status","login","nomeUsuario","turno","urlPDF","criadoEm","nomeArquivo","reabertoPor","reabertoEm","novoHorarioFim"],logs:["dataHora","tipo","login","nomeUsuario","idChecklist","nomeChecklist","detalhe"]};
 let SS_CACHE=null;
-function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.12"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getBase")r=baseDados_(e.parameter.inicio,e.parameter.fim);if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
+function doGet(e){try{setup_();const acao=e.parameter.acao||"status",cb=e.parameter.callback;let r={status:"ok",mensagem:"Servidor online v6.14"};if(acao==="getSyncInfo")r=syncInfo_();if(acao==="getBase")r=baseDados_(e.parameter.inicio,e.parameter.fim);if(acao==="getUsers")r={status:"ok",usuarios:listar_("usuarios")};if(acao==="getTurnos")r={status:"ok",turnos:listar_("turnos")};if(acao==="getEmpresas")r={status:"ok",empresas:listar_("empresas")};if(acao==="getChecklists")r={status:"ok",checklists:listar_("checklists")};if(acao==="getExecucoes")r={status:"ok",execucoes:listarExecucoes_(e.parameter.inicio,e.parameter.fim)};if(acao==="iniciarExecucao")r=iniciarExecucaoDados_(e);if(acao==="reabrirExecucao")r=reabrirExecucaoDados_(e);if(acao==="verificarVencidos")r=verificarChecklistsVencidos_(e.parameter.empresaId||"");const txt=JSON.stringify(r);if(cb)return ContentService.createTextOutput(cb+"("+txt+")").setMimeType(ContentService.MimeType.JAVASCRIPT);return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON)}catch(err){return ContentService.createTextOutput(JSON.stringify({status:"erro",mensagem:err.toString()})).setMimeType(ContentService.MimeType.JSON)}}
 function doPost(e){try{setup_();const a=e.parameter.acao||"";if(a==="telegram")return enviarTelegram_(e.parameter.mensagem||"");if(a==="saveUser")return salvarUsuario_(e);if(a==="saveChecklist")return salvarChecklist_(e);if(a==="saveTurno")return salvarTurno_(e);if(a==="saveEmpresa")return salvarEmpresa_(e);if(a==="deleteEmpresa")return deleteEmpresa_(e);if(a==="deleteTurno")return deleteTurno_(e);if(a==="toggleChecklist")return toggleChecklist_(e);if(a==="deleteChecklist")return deleteChecklist_(e);if(a==="iniciarExecucao")return iniciarExecucao_(e);if(a==="cancelarExecucao")return cancelarExecucao_(e);if(a==="finalizarExecucao")return finalizarExecucao_(e);if(a==="reabrirExecucao")return reabrirExecucao_(e);if(a==="log")return log_(e.parameter.tipo,e.parameter.login,e.parameter.nomeUsuario,e.parameter.idChecklist,e.parameter.nomeChecklist,e.parameter.detalhe);return ContentService.createTextOutput("Ação desconhecida: "+a)}catch(err){return ContentService.createTextOutput("ERRO: "+err.toString())}}
 function ss_(){if(!SS_CACHE)SS_CACHE=SpreadsheetApp.openById(PLANILHA_ID);return SS_CACHE}
 function sheet_(nome){return ss_().getSheetByName(nome)||aba_(nome)}
@@ -156,10 +156,11 @@ function completarVinculosEmpresa_(dados){
     if(!checklistCompleto_(o))o.ativo="nao";
     return o;
   });
-  return {turnos:turnos,empresas:empresas,checklists:checklists,execucoes:dados.execucoes||[]};
+  return {usuarios:dados.usuarios||[],turnos:turnos,empresas:empresas,checklists:checklists,execucoes:dados.execucoes||[]};
 }
 function baseDados_(inicio,fim){
   const dados=completarVinculosEmpresa_({
+    usuarios:listar_("usuarios"),
     turnos:listar_("turnos"),
     empresas:listar_("empresas"),
     checklists:listar_("checklists"),
@@ -167,9 +168,10 @@ function baseDados_(inicio,fim){
   });
   return {
     status:"ok",
-    versao:"v6.12",
+    versao:"v6.14",
     revision:revisionDados_(dados),
     servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss"),
+    usuarios:dados.usuarios,
     turnos:dados.turnos,
     empresas:dados.empresas,
     checklists:dados.checklists,
@@ -184,7 +186,7 @@ function syncInfo_(){
     return nome+":"+JSON.stringify(vals);
   }).join("|");
   const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,partes).map(b=>("0"+((b+256)%256).toString(16)).slice(-2)).join("").slice(0,10);
-  return {status:"ok",versao:"v6.12",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
+  return {status:"ok",versao:"v6.14",revision:digest,servidorEm:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss")};
 }
 function salvarUsuario_(e){
   const login=normalizarLogin_(e.parameter.login);
@@ -320,33 +322,51 @@ function nomeUsuarioPorLogin_(login){
 }
 
 function deleteRow_(abaNome,keyName,keyValue){const sh=aba_(abaNome),vals=sh.getDataRange().getValues(),h=vals[0].map(String),keyCol=h.indexOf(keyName)+1;for(let i=1;i<vals.length;i++){if(String(vals[i][keyCol-1]).trim()===String(keyValue).trim()){sh.deleteRow(i+1);return}}}
+function iniciarExecucaoDados_(e){
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))return {status:"erro",mensagem:"Servidor ocupado. Tente novamente."};
+  try{
+    const p=e.parameter||{};
+    const idExec=String(p.idExecucao||"").trim();
+    const idChecklist=String(p.idChecklist||"").trim();
+    const login=normalizarLogin_(p.login);
+    if(!idExec||!idChecklist||!login)return {status:"erro",mensagem:"Dados incompletos para iniciar."};
+    const existente=listar_("execucoes").find(function(r){return String(r.idExecucao||"").trim()===idExec})||{};
+    const statusAtual=String(existente.status||"").toLowerCase();
+    if(statusAtual==="executando"&&String(existente.login||"").trim()){
+      return {status:"bloqueado",mensagem:"Checklist já está em execução.",execucao:existente};
+    }
+    if(statusAtual==="finalizado"||statusAtual==="aguardando_envio"){
+      return {status:"bloqueado",mensagem:"Checklist já foi finalizado.",execucao:existente};
+    }
+    const execucao={
+      idExecucao:idExec,
+      data:p.data||dataHoje_(),
+      idChecklist:idChecklist,
+      nomeChecklist:p.nomeChecklist||"",
+      horario:normalizarHora_(p.horario),
+      horarioFim:normalizarHora_(p.horarioFim),
+      status:"executando",
+      login:login,
+      nomeUsuario:p.nomeUsuario||nomeUsuarioPorLogin_(login),
+      turno:p.turno||"",
+      urlPDF:"",
+      criadoEm:new Date().toISOString(),
+      nomeArquivo:"",
+      reabertoPor:existente.reabertoPor||"",
+      reabertoEm:existente.reabertoEm||"",
+      novoHorarioFim:existente.novoHorarioFim||""
+    };
+    upsertObj_("execucoes","idExecucao",idExec,execucao);
+    log_("iniciou_execucao",login,execucao.nomeUsuario,idChecklist,p.nomeChecklist,"Iniciou "+idExec);
+    return {status:"ok",execucao:execucao};
+  }finally{
+    lock.releaseLock();
+  }
+}
 function iniciarExecucao_(e){
-  const idExec=String(e.parameter.idExecucao||"").trim();
-  const idChecklist=String(e.parameter.idChecklist||"").trim();
-  if(!idExec||!idChecklist)return ContentService.createTextOutput("Dados incompletos");
-  const existente=listar_("execucoes").find(function(r){return String(r.idExecucao).trim()===idExec})||{};
-  const statusAtual=String(existente.status||"").toLowerCase();
-  if(statusAtual==="finalizado"||statusAtual==="aguardando_envio")return ContentService.createTextOutput("Execução já finalizada");
-  upsertObj_("execucoes","idExecucao",idExec,{
-    idExecucao:idExec,
-    data:e.parameter.data||dataHoje_(),
-    idChecklist:idChecklist,
-    nomeChecklist:e.parameter.nomeChecklist||"",
-    horario:normalizarHora_(e.parameter.horario),
-    horarioFim:normalizarHora_(e.parameter.horarioFim),
-    status:"executando",
-    login:normalizarLogin_(e.parameter.login),
-    nomeUsuario:e.parameter.nomeUsuario||nomeUsuarioPorLogin_(e.parameter.login),
-    turno:e.parameter.turno||"",
-    urlPDF:"",
-    criadoEm:existente.criadoEm||new Date().toISOString(),
-    nomeArquivo:"",
-    reabertoPor:existente.reabertoPor||"",
-    reabertoEm:existente.reabertoEm||"",
-    novoHorarioFim:existente.novoHorarioFim||""
-  });
-  log_("iniciou_execucao",e.parameter.login,e.parameter.nomeUsuario,idChecklist,e.parameter.nomeChecklist,"Iniciou "+idExec);
-  return ContentService.createTextOutput("ok");
+  const r=iniciarExecucaoDados_(e);
+  return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
 }
 function cancelarExecucao_(e){
   const idExec=String(e.parameter.idExecucao||"").trim();
@@ -454,38 +474,45 @@ function instalarTriggerTelegramVencidos(){
 }
 
 function reabrirExecucaoDados_(e){
-  const now=new Date();
-  const fim=new Date(now.getTime()+60*60*1000);
-  const novo=Utilities.formatDate(fim,Session.getScriptTimeZone(),"HH:mm");
-  const reabertoEm=Utilities.formatDate(now,Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss");
-  const idExec=String(e.parameter.idExecucao||"").trim();
-  const idChecklist=String(e.parameter.idChecklist||"").trim();
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))return {status:"erro",mensagem:"Servidor ocupado. Tente novamente."};
+  try{
+    const now=new Date();
+    const fim=new Date(now.getTime()+60*60*1000);
+    const novo=Utilities.formatDate(fim,Session.getScriptTimeZone(),"HH:mm");
+    const reabertoEm=Utilities.formatDate(now,Session.getScriptTimeZone(),"yyyy-MM-dd'T'HH:mm:ss");
+    const idExec=String(e.parameter.idExecucao||"").trim();
+    const idChecklist=String(e.parameter.idChecklist||"").trim();
+    if(!idExec||!idChecklist)return {status:"erro",mensagem:"Dados incompletos para reabrir."};
 
-  const ex=listar_("execucoes").find(r=>String(r.idExecucao).trim()===idExec) || {};
-  const c=checklistPorId_(idChecklist);
+    const ex=listar_("execucoes").find(r=>String(r.idExecucao).trim()===idExec) || {};
+    const c=checklistPorId_(idChecklist);
 
-  const linha={
-    idExecucao:idExec,
-    data:ex.data||dataHoje_(),
-    idChecklist:idChecklist,
-    nomeChecklist:ex.nomeChecklist||c.nome||"",
-    horario:ex.horario||c.horario||"",
-    horarioFim:ex.horarioFim||c.horarioFim||"",
-    status:"reaberto",
-    login:"",
-    nomeUsuario:"",
-    turno:ex.turno||"",
-    urlPDF:"",
-    criadoEm:ex.criadoEm||new Date().toISOString(),
-    nomeArquivo:"",
-    reabertoPor:e.parameter.login||"",
-    reabertoEm:reabertoEm,
-    novoHorarioFim:novo
-  };
+    const linha={
+      idExecucao:idExec,
+      data:ex.data||dataHoje_(),
+      idChecklist:idChecklist,
+      nomeChecklist:ex.nomeChecklist||c.nome||"",
+      horario:ex.horario||c.horario||"",
+      horarioFim:ex.horarioFim||c.horarioFim||"",
+      status:"reaberto",
+      login:"",
+      nomeUsuario:"",
+      turno:ex.turno||"",
+      urlPDF:"",
+      criadoEm:ex.criadoEm||new Date().toISOString(),
+      nomeArquivo:"",
+      reabertoPor:e.parameter.login||"",
+      reabertoEm:reabertoEm,
+      novoHorarioFim:novo
+    };
 
-  upsertObj_("execucoes","idExecucao",idExec,linha);
-  log_("reabriu",e.parameter.login,e.parameter.nomeUsuario,idChecklist,linha.nomeChecklist,"Reaberto até "+novo);
-  return {status:"ok",execucao:linha};
+    upsertObj_("execucoes","idExecucao",idExec,linha);
+    log_("reabriu",e.parameter.login,e.parameter.nomeUsuario,idChecklist,linha.nomeChecklist,"Reaberto até "+novo);
+    return {status:"ok",execucao:linha};
+  }finally{
+    lock.releaseLock();
+  }
 }
 function reabrirExecucao_(e){
   const r=reabrirExecucaoDados_(e);

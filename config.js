@@ -1,5 +1,5 @@
 ﻿const APP = {
-  versao: "v6.12",
+  versao: "v6.14",
   API_URL: "https://script.google.com/macros/s/AKfycbyc-yL1GOO5Q5WYjWXPuSoMMY0IMUVqzA3pizat3ATTp-kTCh1sxF0p9qlCqnoEw0n-Hw/exec",
   ADMIN_MESTRE: "01",
   CACHE_MS: 45000,

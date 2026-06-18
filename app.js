@@ -3,7 +3,6 @@ const NET={jsonpTimeout:22000,jsonpRetryDelay:650,postTimeout:18000};
 function prepararVersaoLocal(){
   const v=localStorage.getItem("appVersaoDados");
   if(v===APP.versao)return;
-  ["usuariosSistema","turnosSistema","empresasSistema","checklistsSistema","ultimaSync","syncRevision","syncServidor"].forEach(k=>localStorage.removeItem(k));
   Object.keys(localStorage).filter(k=>k.includes("_alerta_v")).forEach(k=>localStorage.removeItem(k));
   localStorage.setItem("appVersaoDados",APP.versao);
 }
@@ -27,7 +26,7 @@ function normalizarUsuario(u){
   let nome=String(u.nome||u.nomeUsuario||u.usuario||"").trim();
   if(!nome && login===APP.ADMIN_MESTRE) nome="Andre";
   if(!nome) nome="Usuário";
-  return {...u,login,nome,tipo:String(u.tipo||"operador").trim().toLowerCase(),turnosPermitidos:String(u.turnosPermitidos||"").trim(),empresasPermitidas:String(u.empresasPermitidas||"").trim()};
+  return {...u,login,nome,tipo:String(u.tipo||"operador").trim().toLowerCase(),turnosPermitidos:parseLista(u.turnosPermitidos||"").join(","),empresasPermitidas:parseLista(u.empresasPermitidas||"").join(",")};
 }
 function usuarioLogado(){try{const u=JSON.parse(localStorage.getItem("usuarioLogado"));return u?normalizarUsuario(u):null}catch(e){return null}}
 function exigirLogin(){const u=usuarioLogado();if(!u){location.href="login.html";return null}return u}
@@ -62,7 +61,7 @@ function reaberturaExpirada(ex){
   return lim?now>lim:false;
 }
 function diaSemanaAtual(){return ["dom","seg","ter","qua","qui","sex","sab"][new Date().getDay()]}
-function parseLista(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(",").map(x=>x.trim()).filter(Boolean)}
+function parseLista(v){if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);return String(v||"").split(/,|;|\n/).map(x=>x.trim()).filter(Boolean)}
 function parseTarefas(v){if(Array.isArray(v))return v.flatMap(x=>String(x).replace(/\\n/g,"\n").split(/\n|;/)).map(x=>x.trim()).filter(Boolean);return String(v||"").replace(/\\n/g,"\n").split(/\n|;/).map(x=>x.trim()).filter(Boolean)}
 function normalizarHora(v){
   const s=String(v||"").trim();
@@ -88,7 +87,7 @@ function getExecLocal(id){try{return JSON.parse(localStorage.getItem("exec_"+id)
 function setExecLocal(id,d){localStorage.setItem("exec_"+id,JSON.stringify(d))}
 function removeExecLocal(id){localStorage.removeItem("exec_"+id)}
 function postAPI(data,timeoutMs=NET.postTimeout){
-  const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data),keepalive:true});
+  const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)});
   if(!timeoutMs)return envio;
   return Promise.race([envio,new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),timeoutMs))]);
 }
@@ -109,6 +108,7 @@ async function carregarPacoteOnline(inicio=hojeISO(),fim=hojeISO(),force=false){
       const d=await jsonpRetry("getBase",{inicio,fim},2,force?26000:16000);
       if(d?.status==="ok"&&Array.isArray(d.turnos)&&Array.isArray(d.empresas)&&Array.isArray(d.checklists)){
         const agora=Date.now();
+        if(Array.isArray(d.usuarios)){Mem.usuarios=(d.usuarios||[]).map(normalizarUsuario);localStorage.setItem("usuariosSistema",JSON.stringify(Mem.usuarios));Mem.last.usuarios=agora}
         Mem.turnos=(d.turnos||[]).map(normalizarTurno).filter(t=>t.id&&t.ativo!=="nao");
         Mem.empresas=(d.empresas||[]).map(normalizarEmpresa).filter(e=>e.id&&e.ativo!=="nao");
         Mem.checklists=(d.checklists||[]).map(normalizarChecklist).filter(c=>c.id&&c.nome);
@@ -123,6 +123,25 @@ async function carregarPacoteOnline(inicio=hojeISO(),fim=hojeISO(),force=false){
       throw e;
     }
   });
+}
+function limparMemoriaSincronizacao(){
+  Mem.usuarios=null;Mem.turnos=null;Mem.empresas=null;Mem.checklists=null;Mem.execucoes=null;Mem.pending={};
+  Mem.last={usuarios:0,turnos:0,empresas:0,checklists:0,execucoes:0};
+}
+async function sincronizarBaseCompleta(inicio=hojeISO(),fim=hojeISO()){
+  limparMemoriaSincronizacao();
+  const pacote=await carregarPacoteOnline(inicio,fim,true);
+  if(pacote.offline)throw new Error("Base online indisponível");
+  if(!Mem.usuarios)await carregarUsuariosOnline(true);
+  return pacote;
+}
+async function iniciarExecucaoOnline(payload){
+  const r=await jsonpRetry("iniciarExecucao",payload,2,26000);
+  if(r?.status==="ok")return r;
+  const msg=r?.mensagem||"Não foi possível iniciar este checklist.";
+  const erro=new Error(msg);
+  erro.resposta=r;
+  throw erro;
 }
 function salvarCacheBase(d,agora=Date.now()){localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos||[]));localStorage.setItem("empresasSistema",JSON.stringify(Mem.empresas||[]));localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists||[]));if(d?.revision)localStorage.setItem("syncRevision",d.revision||"");if(d?.servidorEm)localStorage.setItem("syncServidor",d.servidorEm||"");["turnos","empresas","checklists","execucoes"].forEach(k=>Mem.last[k]=agora)}
 function listaLocal(key,def=[]){try{const v=localStorage.getItem(key);return v?JSON.parse(v):def}catch(e){return def}}
@@ -144,6 +163,9 @@ function alertaUnico(id,tipo,ciclos,msg=null){const k=`${id}_${tipo}_alerta_v6`;
 function nomePdf(c){const a=new Date(),ano=a.getFullYear(),mes=String(a.getMonth()+1).padStart(2,"0"),dia=String(a.getDate()).padStart(2,"0");return`${ano}-${mes}-${dia} - ${c.nome.toLowerCase()} - ${horaArquivo(a)}.pdf`}
 function marcarSync(t=""){localStorage.setItem("ultimaSync",t||new Date().toISOString())}
 function textoUltimaSync(){const s=localStorage.getItem("ultimaSync");if(!s)return"Ainda não sincronizado";const m=Math.floor((Date.now()-new Date(s).getTime())/60000);return m<=0?"Atualizado agora":`Atualizado há ${m} min`}
+function proximaMeiaNoiteMs(){const d=new Date();d.setHours(24,0,8,0);return Math.max(1000,d.getTime()-Date.now())}
+async function sincronizarDiario(chave,fn){const hoje=hojeISO();if(localStorage.getItem(chave)===hoje)return false;await fn();localStorage.setItem(chave,hoje);return true}
+function agendarSyncDiario(chave,fn){sincronizarDiario(chave,fn).catch(()=>{});setTimeout(function disparar(){sincronizarDiario(chave,fn).catch(()=>{});setTimeout(disparar,proximaMeiaNoiteMs())},proximaMeiaNoiteMs())}
 function confirmarAcao({titulo="Confirmar ação",texto="",confirmar="Confirmar",cancelar="Cancelar",perigo=false}={}){return new Promise(resolve=>{let modal=document.getElementById("confirmModal");if(!modal){modal=document.createElement("div");modal.id="confirmModal";modal.className="modal";modal.innerHTML=`<div class="modalContent confirmModal"><h2 id="confirmTitulo"></h2><p id="confirmTexto"></p><div class="confirmActions"><button id="confirmCancelar" class="secondary" type="button"></button><button id="confirmOk" type="button"></button></div></div>`;document.body.appendChild(modal)}const ok=document.getElementById("confirmOk"),cancel=document.getElementById("confirmCancelar");document.getElementById("confirmTitulo").innerText=titulo;document.getElementById("confirmTexto").innerText=texto;ok.innerText=confirmar;ok.className=perigo?"red":"";cancel.innerText=cancelar;modal.style.display="flex";const fechar=v=>{modal.style.display="none";ok.onclick=null;cancel.onclick=null;resolve(v)};ok.onclick=()=>fechar(true);cancel.onclick=()=>fechar(false)})}
 async function enfileirarEnvio(payload){const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");f.push({...payload,criadoEm:new Date().toISOString()});localStorage.setItem("filaEnvio",JSON.stringify(f))}
 async function processarFila(){if(!navigator.onLine)return;const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");if(!f.length)return;const r=[];for(const item of f){try{await postAPI(item,NET.postTimeout)}catch(e){r.push(item)}}localStorage.setItem("filaEnvio",JSON.stringify(r))}
