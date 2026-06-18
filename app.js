@@ -84,7 +84,21 @@ function normalizarTurno(t){return{id:String(t.id||"").trim(),nome:String(t.nome
 function normalizarEmpresa(e){return{id:String(e.id||"").trim(),nome:String(e.nome||"").trim(),turnos:parseLista(e.turnos),ativo:String(e.ativo||"sim").toLowerCase()}}
 function execId(c,data=hojeISO()){return `${data}_${c.id}_${String(c.horario).replace(":","-")}`}
 function getExecLocal(id){try{return JSON.parse(localStorage.getItem("exec_"+id)||"null")}catch(e){return null}}
-function setExecLocal(id,d){localStorage.setItem("exec_"+id,JSON.stringify(d))}
+function limparArmazenamentoPesado(){
+  const hoje=hojeISO();
+  Object.keys(localStorage).forEach(k=>{
+    if(k.startsWith("rascunho_"))localStorage.removeItem(k);
+    if(k.startsWith("exec_")&&!k.includes(hoje))localStorage.removeItem(k);
+    if(k.includes("_alerta_v"))localStorage.removeItem(k);
+  });
+}
+function setJSONLocalSeguro(key,d){
+  const valor=JSON.stringify(d);
+  try{localStorage.setItem(key,valor);return true}catch(e){}
+  limparArmazenamentoPesado();
+  try{localStorage.setItem(key,valor);return true}catch(e){return false}
+}
+function setExecLocal(id,d){setJSONLocalSeguro("exec_"+id,d)}
 function removeExecLocal(id){localStorage.removeItem("exec_"+id)}
 function postAPI(data,timeoutMs=NET.postTimeout){
   const envio=fetch(APP.API_URL,{method:"POST",mode:"no-cors",body:new URLSearchParams(data)});
@@ -117,11 +131,7 @@ async function carregarPacoteOnline(inicio=hojeISO(),fim=hojeISO(),force=false){
         return{sync:d,turnos:Mem.turnos,empresas:Mem.empresas,checklists:Mem.checklists,execucoes:Mem.execucoes};
       }
       throw new Error("Erro ao carregar base");
-    }catch(e){
-      const fallback=baseLocal();
-      if(fallback.turnos.length||fallback.empresas.length||fallback.checklists.length)return{sync:null,...fallback,offline:true};
-      throw e;
-    }
+    }catch(e){throw e}
   });
 }
 function limparMemoriaSincronizacao(){
@@ -146,7 +156,7 @@ async function iniciarExecucaoOnline(payload){
 function salvarCacheBase(d,agora=Date.now()){localStorage.setItem("turnosSistema",JSON.stringify(Mem.turnos||[]));localStorage.setItem("empresasSistema",JSON.stringify(Mem.empresas||[]));localStorage.setItem("checklistsSistema",JSON.stringify(Mem.checklists||[]));if(d?.revision)localStorage.setItem("syncRevision",d.revision||"");if(d?.servidorEm)localStorage.setItem("syncServidor",d.servidorEm||"");["turnos","empresas","checklists","execucoes"].forEach(k=>Mem.last[k]=agora)}
 function listaLocal(key,def=[]){try{const v=localStorage.getItem(key);return v?JSON.parse(v):def}catch(e){return def}}
 function baseLocal(){return{turnos:listaLocal("turnosSistema",APP.DEFAULT_TURNOS),empresas:listaLocal("empresasSistema",[]),checklists:listaLocal("checklistsSistema",[]),execucoes:Mem.execucoes||[]}}
-async function obterChecklists(incluirInativos=false){try{return await carregarChecklistsOnline(false,incluirInativos)}catch(e){const c=localStorage.getItem("checklistsSistema");let a=c?JSON.parse(c):[];return incluirInativos?a:a.filter(x=>x.ativo!=="nao")}}
+async function obterChecklists(incluirInativos=false){return await carregarChecklistsOnline(true,incluirInativos)}
 function usuarioPodeVerTurno(u,t){if(u.tipo==="admin")return true;if(t==="gerencial")return false;const p=parseLista(u.turnosPermitidos||"");return p.includes("todos")||p.includes(t)}
 function usuarioPodeVerEmpresa(u,e){if(u.tipo==="admin")return true;if(!e)return false;const p=parseLista(u.empresasPermitidas||"");return p.includes("todos")||p.includes(e)}
 function checklistPermitidoUsuario(c,u,t){if(u.tipo==="admin")return true;if(!c.turnos.includes(t))return false;return usuarioPodeVerEmpresa(u,c.empresaId)}
@@ -167,6 +177,11 @@ function proximaMeiaNoiteMs(){const d=new Date();d.setHours(24,0,8,0);return Mat
 async function sincronizarDiario(chave,fn){const hoje=hojeISO();if(localStorage.getItem(chave)===hoje)return false;await fn();localStorage.setItem(chave,hoje);return true}
 function agendarSyncDiario(chave,fn){sincronizarDiario(chave,fn).catch(()=>{});setTimeout(function disparar(){sincronizarDiario(chave,fn).catch(()=>{});setTimeout(disparar,proximaMeiaNoiteMs())},proximaMeiaNoiteMs())}
 function confirmarAcao({titulo="Confirmar ação",texto="",confirmar="Confirmar",cancelar="Cancelar",perigo=false}={}){return new Promise(resolve=>{let modal=document.getElementById("confirmModal");if(!modal){modal=document.createElement("div");modal.id="confirmModal";modal.className="modal";modal.innerHTML=`<div class="modalContent confirmModal"><h2 id="confirmTitulo"></h2><p id="confirmTexto"></p><div class="confirmActions"><button id="confirmCancelar" class="secondary" type="button"></button><button id="confirmOk" type="button"></button></div></div>`;document.body.appendChild(modal)}const ok=document.getElementById("confirmOk"),cancel=document.getElementById("confirmCancelar");document.getElementById("confirmTitulo").innerText=titulo;document.getElementById("confirmTexto").innerText=texto;ok.innerText=confirmar;ok.className=perigo?"red":"";cancel.innerText=cancelar;modal.style.display="flex";const fechar=v=>{modal.style.display="none";ok.onclick=null;cancel.onclick=null;resolve(v)};ok.onclick=()=>fechar(true);cancel.onclick=()=>fechar(false)})}
-async function enfileirarEnvio(payload){const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");f.push({...payload,criadoEm:new Date().toISOString()});localStorage.setItem("filaEnvio",JSON.stringify(f))}
+async function enfileirarEnvio(payload){
+  const leve={...payload,base64:"",base64Omitido:true,criadoEm:new Date().toISOString()};
+  const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]").filter(x=>!x.base64);
+  f.push(leve);
+  setJSONLocalSeguro("filaEnvio",f.slice(-10));
+}
 async function processarFila(){if(!navigator.onLine)return;const f=JSON.parse(localStorage.getItem("filaEnvio")||"[]");if(!f.length)return;const r=[];for(const item of f){try{await postAPI(item,NET.postTimeout)}catch(e){r.push(item)}}localStorage.setItem("filaEnvio",JSON.stringify(r))}
 window.addEventListener("online",processarFila);setInterval(processarFila,60000);
